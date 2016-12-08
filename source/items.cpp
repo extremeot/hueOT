@@ -185,7 +185,7 @@ bool Items::reload()
 int Items::loadFromOtb(std::string file)
 {
 	FileLoader f;
-	if(!f.openFile(file.c_str(), "OTBI", false, true)){
+	if (!f.openFile(file.c_str(), "OTBI", false, true)){
 		return f.getError();
 	}
 
@@ -193,31 +193,31 @@ int Items::loadFromOtb(std::string file)
 	NODE node = f.getChildNode(NO_NODE, type);
 
 	PropStream props;
-	if(f.getProps(node,props)){
+	if (f.getProps(node, props)){
 		//4 byte flags
 		//attributes
 		//0x01 = version data
 		uint32_t flags;
-		if(!props.GET_UINT32(flags)){
+		if (!props.GET_UINT32(flags)){
 			return ERROR_INVALID_FORMAT;
 		}
 		attribute_t attr;
-		if(!props.GET_UINT8(attr)){
+		if (!props.GET_UINT8(attr)){
 			return ERROR_INVALID_FORMAT;
 		}
-		if(attr == ROOT_ATTR_VERSION){
+		if (attr == ROOT_ATTR_VERSION){
 			datasize_t datalen = 0;
-			if(!props.GET_UINT16(datalen)){
+			if (!props.GET_UINT16(datalen)){
 				return ERROR_INVALID_FORMAT;
 			}
-			if(datalen != sizeof(VERSIONINFO)){
+			if (datalen != sizeof(VERSIONINFO)){
 				return ERROR_INVALID_FORMAT;
 			}
 			VERSIONINFO vi;
-			if(		!props.GET_UINT32(vi.dwMajorVersion) ||
-					!props.GET_UINT32(vi.dwMinorVersion) ||
-					!props.GET_UINT32(vi.dwBuildNumber) ||
-					!props.GET_RAWSTRING((char*)&vi.CSDVersion, sizeof(vi.CSDVersion)))
+			if (!props.GET_UINT32(vi.dwMajorVersion) ||
+				!props.GET_UINT32(vi.dwMinorVersion) ||
+				!props.GET_UINT32(vi.dwBuildNumber) ||
+				!props.GET_RAWSTRING((char*)&vi.CSDVersion, sizeof(vi.CSDVersion)))
 			{
 				return ERROR_INVALID_FORMAT;
 			}
@@ -228,21 +228,11 @@ int Items::loadFromOtb(std::string file)
 		}
 	}
 
-	if (Items::dwMajorVersion != 1 && Items::dwMajorVersion != 2) {
-		std::cout << "Not supported items.otb version." << std::endl;
-		return ERROR_INVALID_FORMAT;
-	}
-
-	if(Items::dwMajorVersion == 0xFFFFFFFF){
-		std::cout << "[Warning] Items::loadFromOtb items.otb using generic client version."
-			<< std::endl;
-	}
-
 	node = f.getChildNode(node, type);
 
-	while(node != NO_NODE){
+	while (node != NO_NODE){
 		PropStream props;
-		if(!f.getProps(node,props)){
+		if (!f.getProps(node, props)){
 			return f.getError();
 		}
 
@@ -250,37 +240,36 @@ int Items::loadFromOtb(std::string file)
 		ItemType* iType = new ItemType();
 		iType->group = (itemgroup_t)type;
 
-		switch(type){
-            case ITEM_GROUP_CONTAINER:
-                iType->type = ITEM_TYPE_CONTAINER;
-                break;
-                
-            case ITEM_GROUP_DOOR:
-                iType->type = ITEM_TYPE_DOOR;
-                break;
-                
-            case ITEM_GROUP_MAGICFIELD:
-                iType->type = ITEM_TYPE_MAGICFIELD;
-                break;
-                
-            case ITEM_GROUP_TELEPORT:
-                iType->type = ITEM_TYPE_TELEPORT;
-                break;
-                 
-			case ITEM_GROUP_NONE:
-			case ITEM_GROUP_GROUND:
-			case ITEM_GROUP_CHARGES:
-			case ITEM_GROUP_SPLASH:
-			case ITEM_GROUP_FLUID:
-			case ITEM_GROUP_DEPRECATED:
-				break;
-			default:
-				return ERROR_INVALID_FORMAT;
-				break;
+		switch (type){
+		case ITEM_GROUP_CONTAINER:
+			iType->type = ITEM_TYPE_CONTAINER;
+			break;
+
+		case ITEM_GROUP_DOOR:
+			iType->type = ITEM_TYPE_DOOR;
+			break;
+
+		case ITEM_GROUP_MAGICFIELD:
+			iType->type = ITEM_TYPE_MAGICFIELD;
+			break;
+
+		case ITEM_GROUP_TELEPORT:
+			iType->type = ITEM_TYPE_TELEPORT;
+			break;
+
+		case ITEM_GROUP_NONE:
+		case ITEM_GROUP_GROUND:
+		case ITEM_GROUP_CHARGES:
+		case ITEM_GROUP_SPLASH:
+		case ITEM_GROUP_FLUID:
+			break;
+		default:
+			return ERROR_INVALID_FORMAT;
+			break;
 		}
 
 		//read 4 byte flags
-		if(!props.GET_UINT32(flags)){
+		if (!props.GET_UINT32(flags)){
 			return ERROR_INVALID_FORMAT;
 		}
 
@@ -292,38 +281,41 @@ int Items::loadFromOtb(std::string file)
 		iType->pickupable = hasBitSet(FLAG_PICKUPABLE, flags);
 		iType->moveable = hasBitSet(FLAG_MOVEABLE, flags);
 		iType->stackable = hasBitSet(FLAG_STACKABLE, flags);
+		iType->floorChangeDown = hasBitSet(FLAG_FLOORCHANGEDOWN, flags);
+		iType->floorChangeNorth = hasBitSet(FLAG_FLOORCHANGENORTH, flags);
+		iType->floorChangeEast = hasBitSet(FLAG_FLOORCHANGEEAST, flags);
+		iType->floorChangeSouth = hasBitSet(FLAG_FLOORCHANGESOUTH, flags);
+		iType->floorChangeWest = hasBitSet(FLAG_FLOORCHANGEWEST, flags);
 		iType->alwaysOnTop = hasBitSet(FLAG_ALWAYSONTOP, flags);
 		iType->isVertical = hasBitSet(FLAG_VERTICAL, flags);
 		iType->isHorizontal = hasBitSet(FLAG_HORIZONTAL, flags);
 		iType->isHangable = hasBitSet(FLAG_HANGABLE, flags);
 		iType->allowDistRead = hasBitSet(FLAG_ALLOWDISTREAD, flags);
 		iType->rotable = hasBitSet(FLAG_ROTABLE, flags);
-		iType->canReadText = hasBitSet(FLAG_READABLE, flags);
-		iType->lookThrough = hasBitSet(FLAG_LOOKTHROUGH, flags);
 
-		if(hasBitSet(FLAG_READABLE, flags)){
-            iType->canReadText = true;
-        }
+		if (hasBitSet(FLAG_READABLE, flags)){
+			iType->canReadText = true;
+		}
 
 		attribute_t attrib;
 		datasize_t datalen = 0;
-		while(props.GET_UINT8(attrib)){
+		while (props.GET_UINT8(attrib)){
 			//size of data
-			if(!props.GET_UINT16(datalen)){
+			if (!props.GET_UINT16(datalen)){
 				delete iType;
 				return ERROR_INVALID_FORMAT;
 			}
-			switch(attrib){
+			switch (attrib){
 			case ITEM_ATTR_SERVERID:
 			{
-				if(datalen != sizeof(uint16_t))
+				if (datalen != sizeof(uint16_t))
 					return ERROR_INVALID_FORMAT;
 
 				uint16_t serverid;
-				if(!props.GET_UINT16(serverid))
+				if (!props.GET_UINT16(serverid))
 					return ERROR_INVALID_FORMAT;
 
-				if(serverid > 20000)
+				if (serverid > 20000)
 					return ERROR_INVALID_FORMAT;
 
 				iType->id = serverid;
@@ -331,11 +323,11 @@ int Items::loadFromOtb(std::string file)
 			}
 			case ITEM_ATTR_CLIENTID:
 			{
-				if(datalen != sizeof(uint16_t))
+				if (datalen != sizeof(uint16_t))
 					return ERROR_INVALID_FORMAT;
 
 				uint16_t clientid;
-				if(!props.GET_UINT16(clientid))
+				if (!props.GET_UINT16(clientid))
 					return ERROR_INVALID_FORMAT;
 
 				iType->clientId = clientid;
@@ -343,11 +335,11 @@ int Items::loadFromOtb(std::string file)
 			}
 			case ITEM_ATTR_SPEED:
 			{
-				if(datalen != sizeof(uint16_t))
+				if (datalen != sizeof(uint16_t))
 					return ERROR_INVALID_FORMAT;
 
 				uint16_t speed;
-				if(!props.GET_UINT16(speed))
+				if (!props.GET_UINT16(speed))
 					return ERROR_INVALID_FORMAT;
 
 				iType->speed = speed;
@@ -356,12 +348,12 @@ int Items::loadFromOtb(std::string file)
 			}
 			case ITEM_ATTR_LIGHT2:
 			{
-				if(datalen != sizeof(lightBlock2))
+				if (datalen != sizeof(lightBlock2))
 					return ERROR_INVALID_FORMAT;
 
 				lightBlock2 lb2;
-				if(		!props.GET_UINT16(lb2.lightLevel) ||
-						!props.GET_UINT16(lb2.lightColor))
+				if (!props.GET_UINT16(lb2.lightLevel) ||
+					!props.GET_UINT16(lb2.lightColor))
 				{
 					return ERROR_INVALID_FORMAT;
 				}
@@ -372,11 +364,11 @@ int Items::loadFromOtb(std::string file)
 			}
 			case ITEM_ATTR_TOPORDER:
 			{
-				if(datalen != sizeof(uint8_t))
+				if (datalen != sizeof(uint8_t))
 					return ERROR_INVALID_FORMAT;
 
 				uint8_t v;
-				if(!props.GET_UINT8(v))
+				if (!props.GET_UINT8(v))
 					return ERROR_INVALID_FORMAT;
 
 				iType->alwaysOnTopOrder = v;
@@ -384,7 +376,7 @@ int Items::loadFromOtb(std::string file)
 			}
 			default:
 				//skip unknown attributes
-				if(!props.SKIP_N(datalen))
+				if (!props.SKIP_N(datalen))
 					return ERROR_INVALID_FORMAT;
 				break;
 			}
@@ -446,7 +438,7 @@ bool Items::loadFromXml(const std::string& datadir)
                             reverseCustomFluidMap[iType->clientFluidType] = FluidTypes_t(id);
                         }
                         else{
-                            std::cout << "Warning! Fluids with id " << id << " and " << reverseCustomFluidMap[iType->clientFluidType] << " are using the same clientId. Forgot the customFluid parameter?" << std::endl;
+                            //std::cout << "Warning! Fluids with id " << id << " and " << reverseCustomFluidMap[iType->clientFluidType] << " are using the same clientId. Forgot the customFluid parameter?" << std::endl;
                         }
 					}
 					items.addElement(iType, iType->id);
@@ -1111,16 +1103,6 @@ bool Items::loadFromXml(const std::string& datadir)
 								it.abilities.preventSkillLoss = (intValue != 0);
 							}
 						}
-						/*else if(asLowerCaseString(strValue) == "suppressmanadrain"){
-							if(readXMLInteger(itemAttributesNode, "value", intValue)){
-								it.abilities.conditionSuppressions |= CONDITION_MANADRAIN;
-							}
-						}
-						else if(asLowerCaseString(strValue) == "suppressphysical"){
-							if(readXMLInteger(itemAttributesNode, "value", intValue)){
-								it.abilities.conditionSuppressions |= CONDITION_PHYSICAL;
-							}
-						}*/
 						else if(asLowerCaseString(strValue) == "absorbpercentfirefield"){
 							if(readXMLInteger(itemAttributesNode, "value", intValue)){
 								it.abilities.absorbFieldDamage[ITEM_FIREFIELD] = intValue;
@@ -1380,49 +1362,6 @@ bool Items::loadFromXml(const std::string& datadir)
 ClientFluidTypes_t Items::getClientFluidType(FluidTypes_t f)
 {
     return getItemType(int(f)).clientFluidType;
-	/*switch(f){
-		case FLUID_EMPTY:
-			return CFLUID_EMPTY;
-		case FLUID_WATER:
-			return CFLUID_WATER;
-		case FLUID_BLOOD:
-			return CFLUID_BLOOD;
-		case FLUID_BEER:
-			return CFLUID_BEER;
-		case FLUID_SLIME:
-			return CFLUID_SLIME;
-		case FLUID_LEMONADE:
-			return CFLUID_LEMONADE;
-		case FLUID_MILK:
-			return CFLUID_MILK;
-		case FLUID_MANA:
-			return CFLUID_MANA;
-		case FLUID_LIFE:
-			return CFLUID_LIFE;
-		case FLUID_OIL:
-			return CFLUID_OIL;
-		case FLUID_URINE:
-			return CFLUID_URINE;
-		case FLUID_COCONUTMILK:
-			return CFLUID_COCONUTMILK;
-		case FLUID_WINE:
-			return CFLUID_WINE;
-		case FLUID_MUD:
-			return CFLUID_MUD;
-		case FLUID_FRUITJUICE:
-			return CFLUID_FRUITJUICE;
-		case FLUID_RUM:
-			return CFLUID_RUM;
-		case FLUID_TEA:
-			return CFLUID_TEA;
-		case FLUID_MEAD:
-			return CFLUID_MEAD;
-	    default:
-			//a custom fluid - so we make sure that it returns a ClientFluidTypes_t which isn't taken yet
-			//return ClientFluidTypes_t(int(CFLUID_LAST) + int(f));
-			std::cout << "CEMPTY\n";
-			return CFLUID_EMPTY;
-	}*/
 }
 
 FluidTypes_t Items::getFluidTypeFromClientType(ClientFluidTypes_t c)
@@ -1437,51 +1376,6 @@ FluidTypes_t Items::getFluidTypeFromClientType(ClientFluidTypes_t c)
         std::cout << "Have you included a custom fluid to be sold/bought at a NPC trough the trade window?! The client can't recognize it!" << std::endl;
         return FLUID_EMPTY;
     }
-
-    /*
-    switch(c){
-		case CFLUID_EMPTY:
-			return FLUID_EMPTY;
-		case CFLUID_WATER:
-			return FLUID_WATER;
-		case CFLUID_BLOOD:
-			return FLUID_BLOOD;
-		case CFLUID_BEER:
-			return FLUID_BEER;
-		case CFLUID_SLIME:
-			return FLUID_SLIME;
-		case CFLUID_LEMONADE:
-			return FLUID_LEMONADE;
-		case CFLUID_MILK:
-			return FLUID_MILK;
-		case CFLUID_MANA:
-			return FLUID_MANA;
-		case CFLUID_LIFE:
-			return FLUID_LIFE;
-		case CFLUID_OIL:
-			return FLUID_OIL;
-		case CFLUID_URINE:
-			return FLUID_URINE;
-		case CFLUID_COCONUTMILK:
-			return FLUID_COCONUTMILK;
-		case CFLUID_WINE:
-			return FLUID_WINE;
-		case CFLUID_MUD:
-			return FLUID_MUD;
-		case CFLUID_FRUITJUICE:
-			return FLUID_FRUITJUICE;
-		case CFLUID_RUM:
-			return FLUID_RUM;
-		case CFLUID_TEA:
-			return FLUID_TEA;
-		case CFLUID_MEAD:
-			return FLUID_MEAD;
-	    default:
-			//a custom fluid
-			//return FLUID_CUSTOM;
-			std::cout << "EMPTY\n";
-			return FLUID_EMPTY;
-	}*/
 }
 
 

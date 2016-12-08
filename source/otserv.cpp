@@ -52,7 +52,6 @@
 #include "protocolgame.h"
 #include "protocollogin.h"
 #include "status.h"
-#include "admin.h"
 
 #include "exception.h"
 #include "networkmessage.h"
@@ -76,8 +75,6 @@ Guilds g_guilds;
 boost::mutex g_loaderLock;
 boost::condition_variable g_loaderSignal;
 boost::unique_lock<boost::mutex> g_loaderUniqueLock(g_loaderLock);
-
-extern AdminProtocolConfig* g_adminConfig;
 
 #if !defined(__WINDOWS__)
 time_t start_time;
@@ -184,9 +181,9 @@ int main(int argc, char** argv)
 	boost::thread(boost::bind(&allocatorStatsThread, (void*)NULL));
 #endif
 
-	std::cout << "::" << std::endl;
-	std::cout << "::  " OTSERV_NAME " - Version " OTSERV_VERSION << std::endl;
-	std::cout << "::" << std::endl;
+	std::cout << "--------------------" << std::endl;
+	std::cout << "OTServ RealOTs" << std::endl;
+	std::cout << "--------------------\n" << std::endl;
 
 #if defined __DEBUG__MOVESYS__ || defined __DEBUG_HOUSES__ || defined __DEBUG_MAILBOX__ \
 	|| defined __DEBUG_LUASCRIPTS__ || defined __DEBUG_RAID__ || defined __DEBUG_NET__ \
@@ -216,15 +213,14 @@ int main(int argc, char** argv)
 	#endif
 	std::cout << std::endl;
 #endif
-//Do we really need this? its anoying
-/*
+
 #if !defined(__WINDOWS__) && !defined(__ROOT_PERMISSION__)
 	if( getuid() == 0 || geteuid() == 0 ){
 		std::cout << std::endl << "OTServ executed as root user, please login with a normal user." << std::endl;
 		return 1;
 	}
 #endif
-*/
+
 
 #if !defined __WINDOWS__
 	// ignore sigpipe...
@@ -244,14 +240,14 @@ int main(int argc, char** argv)
 	// Add load task
 	g_dispatcher.addTask(createTask(boost::bind(mainLoader, g_command_opts, &servicer)));
 
+	std::cout << "Initializing..." << std::endl;
+
 	// Wait for loading to finish
 	g_loaderSignal.wait(g_loaderUniqueLock);
 
 	boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
 
-	if(servicer.is_running()){
-		std::cout << "[done]" << std::endl;
-		std::cout << ":: Server Running..." << std::endl;
+	if (servicer.is_running()){
 		servicer.run();
 		g_scheduler.join();
 		g_dispatcher.join();
@@ -295,8 +291,6 @@ bool parseCommandLine(CommandLineOptions& opts, std::vector<std::string> args)
 				g_config.setNumber(ConfigManager::GAME_PORT, atoi(argi->c_str()));
 			if(type == "l" || type == "login")
 				g_config.setNumber(ConfigManager::LOGIN_PORT, atoi(argi->c_str()));
-			if(type == "a" || type == "admin")
-				g_config.setNumber(ConfigManager::ADMIN_PORT, atoi(argi->c_str()));
 			if(type == "s" || type == "status")
 				g_config.setNumber(ConfigManager::STATUS_PORT, atoi(argi->c_str()));
 		}
@@ -380,12 +374,11 @@ void mainLoader(const CommandLineOptions& command_opts, ServiceManager* service_
 	int64_t startLoadTime = OTSYS_TIME();
 
 	//dispatcher thread
+	std::cout << "Starting connections...\n" << std::endl;
 	g_game.setGameState(GAME_STATE_STARTUP);
 
 	// random numbers generator
-	std::cout << ":: Initializing the random numbers... " << std::flush;
 	std::srand((unsigned int)OTSYS_TIME());
-	std::cout << "[done]" << std::endl;
 
 #if defined LUA_CONFIGFILE
 	const char* configname = LUA_CONFIGFILE;
@@ -399,8 +392,6 @@ void mainLoader(const CommandLineOptions& command_opts, ServiceManager* service_
 	}
 
 	// read global config
-	std::cout << ":: Loading lua script " << configname << "... " << std::flush;
-
 #ifdef SYSCONFDIR
 	std::string sysconfpath;
 	sysconfpath = SYSCONFDIR;
@@ -437,7 +428,6 @@ void mainLoader(const CommandLineOptions& command_opts, ServiceManager* service_
 		ErrorMessage(os.str());
 		exit(-1);
 	}
-	std::cout << " [done]" << std::endl;
 
 #ifdef __WINDOWS__
 	std::stringstream mutexName;
@@ -459,76 +449,60 @@ void mainLoader(const CommandLineOptions& command_opts, ServiceManager* service_
 		g_config.setString(ConfigManager::DATA_DIRECTORY, dd);
 	}
 #endif
-	std::cout << ":: Using data directory " << g_config.getString(ConfigManager::DATA_DIRECTORY).c_str() << "... " << std::flush;
-	std::cout << "[done]" << std::endl;
 
-	std::cout << ":: Checking Database Connection... ";
 	Database* db = Database::instance();
 	if(db == NULL || !db->isConnected()){
 		ErrorMessage("Database Connection Failed!");
 		exit(-1);
 	}
-	std::cout << "[done]" << std::endl;
-
-	std::cout << ":: Checking Schema version... ";
-	DBResult* result;
-	if(!(result = db->storeQuery("SELECT `value` FROM `schema_info` WHERE `name` = 'version';"))){
-		ErrorMessage("Can't get schema version! Does `schema_info` exist?");
-		exit(-1);
-	}
-	int schema_version = result->getDataInt("value");
-	db->freeResult(result);
-	if(schema_version != CURRENT_SCHEMA_VERSION){
-		ErrorMessage("Your database is outdated. Run the dbupdate utility to update it to the latest schema version.");
-		exit(-1);
-	}
-	std::cout << "Version = " << schema_version << " ";
-	std::cout << "[done]" << std::endl;
-
 
 	//load RSA key
-	std::cout << ":: Loading RSA key..." << std::flush;
 	const char* p("14299623962416399520070177382898895550795403345466153217470516082934737582776038882967213386204600674145392845853859217990626450972452084065728686565928113");
 	const char* q("7630979195970404721891201847792002125535401292779123937207447574596692788513647179235335529307251350570728407373705564708871762033017096809910315212884101");
 	const char* d("46730330223584118622160180015036832148732986808519344675210555262940258739805766860224610646919605860206328024326703361630109888417839241959507572247284807035235569619173792292786907845791904955103601652822519121908367187885509270025388641700821735345222087940578381210879116823013776808975766851829020659073");
 	g_RSA.setKey(p, q, d);
 
-	std::cout << "[done]" << std::endl;
-
 	std::stringstream filename;
+
+	// Initialize Connections
+	// Tie ports and register services
+
+	// Tibia protocols
+	service_manager->add<ProtocolGame>(g_config.getNumber(ConfigManager::GAME_PORT));
+	service_manager->add<ProtocolLogin>(g_config.getNumber(ConfigManager::LOGIN_PORT));
+
+	// OT protocols
+	service_manager->add<ProtocolStatus>(g_config.getNumber(ConfigManager::STATUS_PORT));
+
+	g_game.start(service_manager);
+	g_loaderSignal.notify_all();
 
 	//load vocations
 	filename.str("");
 	filename << g_config.getString(ConfigManager::DATA_DIRECTORY) << "vocations.xml";
-	std::cout << ":: Loading " << filename.str() << "... " << std::flush;
 	if(!g_vocations.loadFromXml(g_config.getString(ConfigManager::DATA_DIRECTORY))){
 		ErrorMessage("Unable to load vocations!");
 		exit(-1);
 	}
-	std::cout << "[done]" << std::endl;
 
 	// load item data
 	filename.str("");
 	filename << g_config.getString(ConfigManager::DATA_DIRECTORY) << "items/items.otb";
-	std::cout << ":: Loading " << filename.str() << "... " << std::flush;
 	if(Item::items.loadFromOtb(filename.str())){
 		std::stringstream errormsg;
 		errormsg << "Unable to load " << filename.str() << "!";
 		ErrorMessage(errormsg.str().c_str());
 		exit(-1);
 	}
-	std::cout << "[done]" << std::endl;
 
 	filename.str("");
 	filename << g_config.getString(ConfigManager::DATA_DIRECTORY) << "items/items.xml";
-	std::cout << ":: Loading " << filename.str() << "... " << std::flush;
 	if(!Item::items.loadFromXml(g_config.getString(ConfigManager::DATA_DIRECTORY))){
 		std::stringstream errormsg;
 		errormsg << "Unable to load " << filename.str() << "!";
 		ErrorMessage(errormsg.str().c_str());
 		exit(-1);
 	}
-	std::cout << "[done]" << std::endl;
 
 	//load scripts
 	if (!command_opts.skip_scripts){
@@ -545,27 +519,12 @@ void mainLoader(const CommandLineOptions& command_opts, ServiceManager* service_
 	// load monster data
 	filename.str("");
 	filename << g_config.getString(ConfigManager::DATA_DIRECTORY) << "monster/monsters.xml";
-	std::cout << ":: Loading " << filename.str() << "... " << std::flush;
 	if(!g_monsters.loadFromXml(g_config.getString(ConfigManager::DATA_DIRECTORY))){
 		std::stringstream errormsg;
 		errormsg << "Unable to load " << filename.str() << "!";
 		ErrorMessage(errormsg.str().c_str());
 		exit(-1);
 	}
-	std::cout << "[done]" << std::endl;
-
-	//load admin protocol configuration
-	filename.str("");
-	filename << g_config.getString(ConfigManager::DATA_DIRECTORY) << "admin.xml";
-	g_adminConfig = new AdminProtocolConfig();
-	std::cout << ":: Loading admin protocol config... " << std::flush;
-	if(!g_adminConfig->loadXMLConfig(g_config.getString(ConfigManager::DATA_DIRECTORY))){
-		std::stringstream errormsg;
-		errormsg << "Unable to load " << filename.str() << "!";
-		ErrorMessage(errormsg.str().c_str());
-		exit(-1);
-	}
-	std::cout << "[done]" << std::endl;
 
 	std::string worldType = g_config.getString(ConfigManager::WORLD_TYPE);
 
@@ -583,42 +542,27 @@ void mainLoader(const CommandLineOptions& command_opts, ServiceManager* service_
 		exit(-1);
 	}
 
-	std::cout << ":: Worldtype: " << asUpperCaseString(worldType) << std::endl;
-
-	std::cout << ":: Cleaning online players info... " << std::flush;
 	if(!IOPlayer::instance()->cleanOnlineInfo()){
 		std::stringstream errormsg;
 		errormsg << "Unable to execute query for cleaning online status!";
 		ErrorMessage(errormsg.str().c_str());
 		exit(-1);
 	}
-	std::cout << "[done]" << std::endl;
-
-	#ifdef __SKULLSYSTEM__
-	std::cout << ":: Skulls enabled" << std::endl;
-	#endif
 
 	std::string passwordType = g_config.getString(ConfigManager::PASSWORD_TYPE_STR);
 	if(passwordType.empty() || asLowerCaseString(passwordType) == "plain"){
 		g_config.setNumber(ConfigManager::PASSWORD_TYPE, PASSWORD_TYPE_PLAIN);
-		std::cout << ":: Use plain passwords";
 	}
 	else if(asLowerCaseString(passwordType) == "md5"){
 		g_config.setNumber(ConfigManager::PASSWORD_TYPE, PASSWORD_TYPE_MD5);
-		std::cout << ":: Use MD5 passwords";
 	}
 	else if(asLowerCaseString(passwordType) == "sha1"){
 		g_config.setNumber(ConfigManager::PASSWORD_TYPE, PASSWORD_TYPE_SHA1);
-		std::cout << ":: Use SHA1 passwords";
 	}
 	else{
 		ErrorMessage("Unknown password type!");
 		exit(-1);
 	}
-
-	if(g_config.getString(ConfigManager::PASSWORD_SALT) != "")
-		std::cout << " [salted]";
-	std::cout << std::endl;
 
 	if(!g_game.loadMap(g_config.getString(ConfigManager::MAP_FILE),
 		g_config.getString(ConfigManager::MAP_KIND))){
@@ -636,18 +580,7 @@ void mainLoader(const CommandLineOptions& command_opts, ServiceManager* service_
 
 	g_game.setGameState(GAME_STATE_INIT);
 
-	// Tie ports and register services
-
-	// Tibia protocols
-	service_manager->add<ProtocolGame>(g_config.getNumber(ConfigManager::GAME_PORT));
-	service_manager->add<ProtocolLogin>(g_config.getNumber(ConfigManager::LOGIN_PORT));
-
-	// OT protocols
-	service_manager->add<ProtocolAdmin>(g_config.getNumber(ConfigManager::ADMIN_PORT));
-	service_manager->add<ProtocolStatus>(g_config.getNumber(ConfigManager::STATUS_PORT));
-
 	// Print ports/ip addresses that we listen too
-
 	std::pair<uint32_t, uint32_t> IpNetMask;
 	IpNetMask.first  = inet_addr("127.0.0.1");
 	IpNetMask.second = 0xFFFFFFFF;
@@ -655,40 +588,26 @@ void mainLoader(const CommandLineOptions& command_opts, ServiceManager* service_
 
 	char szHostName[128];
 	if(gethostname(szHostName, 128) == 0){
-		std::cout << "::" << std::endl << ":: Running on host " << szHostName << std::endl;
-
 		hostent *he = gethostbyname(szHostName);
 
 		if(he){
-			std::cout << ":: Local IP address(es):  ";
 			unsigned char** addr = (unsigned char**)he->h_addr_list;
 
 			while (addr[0] != NULL){
-				std::cout << (unsigned int)(addr[0][0]) << "."
-				<< (unsigned int)(addr[0][1]) << "."
-				<< (unsigned int)(addr[0][2]) << "."
-				<< (unsigned int)(addr[0][3]) << "  ";
-
 				IpNetMask.first  = *(uint32_t*)(*addr);
 				IpNetMask.second = 0x0000FFFF;
 				serverIPs.push_back(IpNetMask);
 
 				addr++;
 			}
-
-			std::cout << std::endl;
 		}
 	}
 
-	std::cout << ":: Local ports:           ";
 	std::list<uint16_t> ports = service_manager->get_ports();
 	while(ports.size()){
-		std::cout << ports.front() << "\t";
 		ports.pop_front();
 	}
-	std::cout << std::endl;
 
-	std::cout << ":: Global IP address:     ";
 	std::string ip = g_config.getString(ConfigManager::IP);
 
 	uint32_t resolvedIp = inet_addr(ip.c_str());
@@ -704,16 +623,9 @@ void mainLoader(const CommandLineOptions& command_opts, ServiceManager* service_
 		}
 	}
 
-	std::cout << convertIPToString(resolvedIp) << std::endl << "::" << std::endl;
-
-	std::cout << ":: Total loading time: " << (OTSYS_TIME() - startLoadTime)/(1000.) << "s" << std::endl;
-
 	IpNetMask.first  = resolvedIp;
 	IpNetMask.second = 0;
 	serverIPs.push_back(IpNetMask);
-	std::cout << ":: Starting Server... ";
-
-	g_game.start(service_manager);
 
 	if(command_opts.start_closed){
 		g_game.setGameState(GAME_STATE_CLOSED);
@@ -721,5 +633,8 @@ void mainLoader(const CommandLineOptions& command_opts, ServiceManager* service_
 	else{
 		g_game.setGameState(GAME_STATE_NORMAL);
 	}
+
+	std::cout << "Loading time : " << (OTSYS_TIME() - startLoadTime) / (1000.) << " s" << std::endl;
+	std::cout << "\nGame-Server is ready.\n" << std::endl;
 	g_loaderSignal.notify_all();
 }

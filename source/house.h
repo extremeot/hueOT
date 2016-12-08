@@ -30,6 +30,13 @@
 #include <list>
 #include <map>
 
+struct HouseArea
+{
+	uint32_t AreaId;
+	std::string Name;
+	uint32_t SQMPrice;
+	uint16_t DepotId;
+};
 
 class House;
 class BedItem;
@@ -222,6 +229,13 @@ public:
 	// Transfers all items to depot and clicks all players (useful for map updates, for example)
 	void clean();
 
+	HouseArea houseArea;
+	uint32_t TotalSQMs;
+
+	uint32_t rentOffset;
+	uint32_t area;
+	bool guildHouse;
+
 private:
 	void updateDoorDescription();
 	bool transferToDepot();
@@ -290,6 +304,8 @@ public:
 
 	House* getHouseByPlayerId(uint32_t playerId);
 
+	bool loadHouseAreas();
+	bool loadSpecialHouses();
 	bool loadHousesXML(std::string filename);
 	bool payRent(Player* player, House* house, time_t time = 0);
 	bool payHouses();
@@ -300,10 +316,30 @@ public:
 
 	bool payHouse(House* house, time_t time);
 
+	HouseArea getHouseAreaById(uint32_t area){
+		HouseArea t;
+		for (int i = 0; houseAreas.size(); i++)
+		{
+			if (houseAreas.at(i).AreaId == area)
+			{
+				t = houseAreas.at(i);
+				break;
+			}
+		}
+		return t;
+	}
+
+	void AddHouseArea(HouseArea& area){
+		std::vector<HouseArea>::iterator it;
+		it = houseAreas.begin();
+		houseAreas.insert(it, area);
+	}
+
 private:
 	RentPeriod_t rentPeriod;
 	HouseMap houseMap;
 	friend class IOMapSerialize;
+	std::vector<HouseArea> houseAreas;
 };
 
 #endif

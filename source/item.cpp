@@ -43,7 +43,7 @@ extern ConfigManager g_config;
 
 Items Item::items;
 
-Item* Item::CreateItem(const uint16_t _type, uint16_t _count /*= 0*/)
+Item* Item::CreateItem(const uint16_t _type, uint16_t _count /*= 0*/, bool disableDecaying /*= false*/)
 {
 	Item* newItem = NULL;
 
@@ -91,17 +91,21 @@ Item* Item::CreateItem(const uint16_t _type, uint16_t _count /*= 0*/)
 
 		newItem->useThing2();
 	}
+
+	if (newItem)
+		newItem->disableDecaying = disableDecaying;
+
 	return newItem;
 }
 
-Item* Item::CreateItem(PropStream& propStream)
+Item* Item::CreateItem(PropStream& propStream, bool disableDecaying)
 {
 	uint16_t _id;
 	if(!propStream.GET_UINT16(_id)){
 		return NULL;
 	}
 
-	return Item::CreateItem(_id, 0);
+	return Item::CreateItem(_id, 0, disableDecaying);
 }
 
 
@@ -345,6 +349,16 @@ void Item::setSubType(uint16_t n)
 Attr_ReadValue Item::readAttr(AttrTypes_t attr, PropStream& propStream)
 {
 	switch(attr){
+		case ATTR_NO_DECAYING:
+		{
+			uint8_t _count = 0;
+			if (!propStream.GET_UINT8(_count)){
+				return ATTR_READ_ERROR;
+			}
+
+			disableDecaying = true;
+			break;
+		}
 		case ATTR_COUNT:
 		{
 			uint8_t _count = 0;
@@ -578,12 +592,16 @@ bool Item::serializeAttr(PropWriteStream& propWriteStream) const
 		propWriteStream.ADD_UINT16(_count);
 	}
 
-	if(!isNotMoveable() /*moveable*/){
-		uint16_t _actionId = getActionId();
-		if(_actionId){
-			propWriteStream.ADD_UINT8(ATTR_ACTION_ID);
-			propWriteStream.ADD_UINT16(_actionId);
-		}
+	uint16_t _actionId = getActionId();
+	if(_actionId && _actionId > 0){
+		propWriteStream.ADD_UINT8(ATTR_ACTION_ID);
+		propWriteStream.ADD_UINT16(_actionId);
+	}
+
+	uint16_t _uniqueId = getUniqueId();
+	if (_uniqueId && _uniqueId > 0){
+		propWriteStream.ADD_UINT8(ATTR_UNIQUE_ID);
+		propWriteStream.ADD_UINT16(_uniqueId);
 	}
 
 	const std::string& _text = getText();
@@ -604,14 +622,19 @@ bool Item::serializeAttr(PropWriteStream& propWriteStream) const
 		propWriteStream.ADD_STRING(_specialDesc);
 	}
 
-	if(hasAttribute(ATTR_ITEM_DURATION)){
+	if (disableDecaying){
+		propWriteStream.ADD_UINT8(ATTR_NO_DECAYING);
+		propWriteStream.ADD_UINT8(1000);
+	}
+
+	if (hasAttribute(ATTR_ITEM_DURATION)){
 		uint32_t duration = getDuration();
 		propWriteStream.ADD_UINT8(ATTR_DURATION);
 		propWriteStream.ADD_UINT32(duration);
 	}
 
 	uint32_t decayState = getDecaying();
-	if(decayState == DECAYING_TRUE || decayState == DECAYING_PENDING){
+	if (decayState == DECAYING_TRUE || decayState == DECAYING_PENDING){
 		propWriteStream.ADD_UINT8(ATTR_DECAYING_STATE);
 		propWriteStream.ADD_UINT8(decayState);
 	}
@@ -780,16 +803,8 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 		}
 		s << ". It's an \"" << it.runeSpellName << "\"-spell (" << charges << "x). ";
 	}
-	else if ((it.id == ITEM_GATE_EXPERTISE_1 ||
-					  it.id == ITEM_GATE_EXPERTISE_2 ||
-					  it.id == ITEM_GATE_EXPERTISE_3 ||
-					  it.id == ITEM_GATE_EXPERTISE_4 ||
-					  it.id == ITEM_GATE_EXPERTISE_5 ||
-					  it.id == ITEM_GATE_EXPERTISE_6 ||
-					  it.id == ITEM_GATE_EXPERTISE_7 ||
-					  it.id == ITEM_GATE_EXPERTISE_8) &&
-					  (item->getActionId() >= 1000)) {
-		s << " for level " << item->getActionId() - 1000 << ".";
+	else if (it.isLevelDoor()){
+		s << " for level " << item->getActionId() - 2000 << ".\n Only the worthy may pass.";
 	}
 	else if (it.weaponType != WEAPON_NONE){
 		if (it.weaponType == WEAPON_DIST && it.amuType != AMMO_NONE){
@@ -798,27 +813,25 @@ std::string Item::getDescription(const ItemType& it, int32_t lookDistance,
 			}
 		}
 		else if (it.weaponType != WEAPON_AMMO && it.weaponType != WEAPON_WAND){ // Arrows and Bolts doesn't show atk
-			if (it.attack != 0 || it.defense != 0 || it.abilities.stats[STAT_MAGICPOINTS] != 0) {
-				s << " (";
-				if (it.attack != 0){
-					s << "Atk:" << (int)it.attack;
-				}
-
-				if (it.defense != 0 || it.extraDef != 0){
-					if (it.attack != 0)
-						s << " ";
-
-					s << "Def:" << (int)it.defense;
-				}
-
-				if (it.abilities.stats[STAT_MAGICPOINTS] != 0){
-					if (it.attack != 0 || it.defense != 0 || it.extraDef != 0)
-						s << ", ";
-
-					s << "magic level " << std::showpos << (int)it.abilities.stats[STAT_MAGICPOINTS] << std::noshowpos;
-				}
-				s << ")";
+			s << " (";
+			if (it.attack != 0){
+				s << "Atk:" << (int)it.attack;
 			}
+
+			if (it.defense != 0 || it.extraDef != 0){
+				if (it.attack != 0)
+					s << " ";
+
+				s << "Def:" << (int)it.defense;
+			}
+
+			if (it.abilities.stats[STAT_MAGICPOINTS] != 0){
+				if (it.attack != 0 || it.defense != 0 || it.extraDef != 0)
+					s << ", ";
+
+				s << "magic level " << std::showpos << (int)it.abilities.stats[STAT_MAGICPOINTS] << std::noshowpos;
+			}
+			s << ")";
 		}
 		s << ".";
 	}
@@ -969,26 +982,8 @@ std::string Item::getDescription(int32_t lookDistance) const
 	const ItemType& it = items[id];
 
 	s << getDescription(it, lookDistance, this);
+	
 	return s.str();
-}
-
-std::string Item::getXRayDescription() const
-{
-	std::stringstream ret;
-
-	ret << "ID: " << getID() << std::endl;
-	uint16_t actionId = getActionId();
-	uint16_t uniqueId = getUniqueId();
-	if(actionId > 0)
-		ret << "Action ID: " << actionId << std::endl;
-	if(uniqueId > 0)
-		ret << "Unique ID: " << uniqueId << std::endl;
-	#ifdef __DEBUG__
-	if (getContainer())
-		ret << "There are " << getContainer()->getTotalAmountOfItemsInside() - 1 << " things inside of this." << std::endl;
-	#endif
-	ret << Thing::getXRayDescription();
-	return ret.str();
 }
 
 std::string Item::getWeightDescription() const

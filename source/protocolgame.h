@@ -49,9 +49,9 @@ class ProtocolGame : public Protocol
 {
 public:
 	// static protocol information
-	enum {server_sends_first = true};
-	enum {protocol_identifier = 0x0A}; // Not required as we send first
-	enum {use_checksum = false};
+	enum {server_sends_first = false};
+	enum {protocol_identifier = 0x0A};
+
 	static const char* protocol_name() {return "gameworld protocol";}
 
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
@@ -90,6 +90,16 @@ private:
 
 	//Parse methods
 	void parseAutoWalk(NetworkMessage& msg);
+	void parseMove(NetworkMessage& msg, Direction dir);
+	void parseCancelMove(NetworkMessage& msg);
+
+	void parseTurn(NetworkMessage& msg, Direction dir);
+
+	void parseRequestOutfit(NetworkMessage& msg);
+
+	void parseLogout(NetworkMessage& msg);
+	void parseReceivePing(NetworkMessage& msg);
+	void parseStopAutoWalk(NetworkMessage& msg);
 
 	void parseSetOutfit(NetworkMessage& msg);
 	void parseSay(NetworkMessage& msg);
@@ -114,11 +124,13 @@ private:
 	void parseJoinParty(NetworkMessage& msg);
 	void parseRevokePartyInvitation(NetworkMessage& msg);
 	void parsePassPartyLeadership(NetworkMessage& msg);
+	void parseLeaveParty(NetworkMessage& msg);
 
 	//trade methods
 	void parseRequestTrade(NetworkMessage& msg);
 	void parseLookInTrade(NetworkMessage& msg);
 	void parseCloseTrade();
+	void parseAcceptTrade(NetworkMessage& msg);
 
 	//VIP methods
 	void parseAddVip(NetworkMessage& msg);
@@ -127,6 +139,7 @@ private:
 	void parseRotateItem(NetworkMessage& msg);
 
 	//Channel tabs
+	void parseCreatePrivateChannel(NetworkMessage& msg);
 	void parseChannelInvite(NetworkMessage& msg);
 	void parseChannelExclude(NetworkMessage& msg);
 	void parseOpenChannel(NetworkMessage& msg);
@@ -134,6 +147,8 @@ private:
 	void parseCloseChannel(NetworkMessage& msg);
 	void parseProcessRuleViolation(NetworkMessage& msg);
 	void parseCloseRuleViolation(NetworkMessage& msg);
+	void parseGetChannels(NetworkMessage& msg);
+	void parseCancelRuleViolation(NetworkMessage& msg);
 
 	//etc
 	void parseViolationWindow(NetworkMessage& msg);

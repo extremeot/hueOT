@@ -74,7 +74,7 @@ void ServiceManager::run()
 		m_io_service.run();
 	}
 	catch(boost::system::system_error& e){
-		LOG_MESSAGE("NETWORK", LOGTYPE_ERROR, 1, e.what());
+		LOG_MESSAGE("NETWORK", e.what());
 	}
 }
 
@@ -92,7 +92,7 @@ void ServiceManager::stop()
 			m_io_service.post(boost::bind(&ServicePort::onStopServer, it->second));
 		}
 		catch(boost::system::system_error& e){
-			LOG_MESSAGE("NETWORK", LOGTYPE_ERROR, 1, e.what());
+			LOG_MESSAGE("NETWORK", e.what());
 		}
 	}
 	m_acceptors.clear();
@@ -155,7 +155,7 @@ void ServicePort::accept()
 	}
 	catch(boost::system::system_error& e){
 		if(m_logError){
-			LOG_MESSAGE("NETWORK", LOGTYPE_ERROR, 1, e.what());
+			LOG_MESSAGE("NETWORK", e.what());
 			m_logError = false;
 		}
 	}
@@ -281,7 +281,7 @@ void ServicePort::open(uint16_t port)
 	}
 	catch(boost::system::system_error& e){
 		if(m_logError){
-			LOG_MESSAGE("NETWORK", LOGTYPE_ERROR, 1, e.what());
+			LOG_MESSAGE("NETWORK", e.what());
 			m_logError = false;
 		}
 

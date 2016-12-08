@@ -161,6 +161,7 @@ public:
 	TrashHolder* getTrashHolder() const;
 	Mailbox* getMailbox() const;
 	BedItem* getBedItem() const;
+	Door* getDoorItem() const;
 
 	Creature* getTopCreature();
 	Item* getTopTopItem();
@@ -204,6 +205,20 @@ public:
 		}
 	}
 
+	bool canSaveData() {
+		if (getZone() == TILESTATE_NOPVPZONE)
+		{
+			return false;
+		}
+
+		if (isHouseTile())
+		{
+			return false;
+		}
+
+		return true;
+	}
+
 	ZoneType_t getZone() const {
 		if(hasFlag(TILESTATE_PROTECTIONZONE)){
 			return ZONE_PROTECTION;
@@ -223,6 +238,7 @@ public:
 	virtual std::string getDescription(int32_t lookDistance) const;
 
 	void moveCreature(Creature* creature, Cylinder* toCylinder, bool teleport = false);
+	uint32_t getHeight() const;
 	int32_t getClientIndexOfThing(const Player* player, const Thing* thing) const;
 
 	//cylinder implementations

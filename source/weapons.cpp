@@ -165,8 +165,7 @@ int32_t Weapons::getMaxMeleeDamage(int32_t attackSkill, int32_t attackValue)
 //players
 int32_t Weapons::getMaxWeaponDamage(int32_t level, int32_t attackSkill, int32_t attackValue, float attackFactor)
 {
-	// slightly buffed formula from original ((attackValue * attackSkill * 0.065) / attackFactor)
-	return (int32_t)std::ceil(((attackValue * attackSkill * 0.075 + level * 0.3) / attackFactor));
+	return (int32_t)std::ceil(2 * ((float)(attackValue * (attackSkill + 5.8) / 25.) / attackFactor) );
 }
 
 Weapon::Weapon(LuaScriptInterface* _interface) :
@@ -518,7 +517,7 @@ void Weapon::onUsedWeapon(Player* player, Item* item, Tile* destTile) const
 
 	if(!player->hasFlag(PlayerFlag_HasNoExhaustion) && hasExhaustion()){
 		if(exhaustion == -1)
-			player->addCombatExhaust(g_config.getNumber(ConfigManager::COMBAT_EXHAUSTED));
+			player->addCombatExhaust(2000);
 		else
 			player->addCombatExhaust(exhaustion);
 	}
@@ -1025,7 +1024,7 @@ int32_t WeaponDistance::getWeaponDamage(const Player* player, const Creature* ta
 		minValue = int32_t(minValue * vocation->getMeleeBaseDamage(WEAPON_DIST));
 	}
 
-	return -random_range(minValue, maxValue);
+	return -uniform_random(minValue, maxValue);
 }
 
 bool WeaponDistance::getSkillType(const Player* player, const Item* item,
@@ -1083,7 +1082,6 @@ bool WeaponWand::configureEvent(xmlNodePtr p)
 	}
 
 	if(readXMLString(p, "type", strValue)){
-		//TODO: use a tool-function
 		if(asLowerCaseString(strValue) == "earth"){
 			params.combatType = COMBAT_EARTHDAMAGE;
 		}

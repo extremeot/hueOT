@@ -21,6 +21,8 @@
 
 #include "configmanager.h"
 #include <iostream>
+#include <algorithm>
+#include <string>
 
 ConfigManager::ConfigManager()
 {
@@ -29,7 +31,6 @@ ConfigManager::ConfigManager()
 	m_isLoaded = false;
 
 	m_confString[IP] = "";
-	m_confInteger[ADMIN_PORT] = 0;
 	m_confInteger[GAME_PORT] = 0;
 	m_confInteger[LOGIN_PORT] = 0;
 	m_confInteger[STATUS_PORT] = 0;
@@ -42,6 +43,8 @@ ConfigManager::~ConfigManager()
 
 bool ConfigManager::loadFile(const std::string& _filename)
 {
+	std::string __filename = _filename;
+	std::transform(__filename.begin(), __filename.end(), __filename.begin(), ::tolower);
 	if(L)
 		lua_close(L);
 
@@ -49,7 +52,7 @@ bool ConfigManager::loadFile(const std::string& _filename)
 
 	if(!L) return false;
 
-	if(luaL_dofile(L, _filename.c_str()))
+	if(luaL_dofile(L, __filename.c_str()))
 	{
 		lua_close(L);
 		L = NULL;
@@ -59,152 +62,124 @@ bool ConfigManager::loadFile(const std::string& _filename)
 	// parse config
 	if(!m_isLoaded) // info that must be loaded one time (unless we reset the modules involved)
 	{
-		m_confString[CONFIG_FILE] = _filename;
+		m_confString[CONFIG_FILE] = __filename;
 
 		// These settings might have been set from command line
 		if(m_confString[IP] == "")
-			m_confString[IP] = getGlobalString(L, "ip", "127.0.0.1");
+			m_confString[IP] = getGlobalString(L, "IP", "127.0.0.1");
 		if(m_confInteger[GAME_PORT] == 0)
-			m_confInteger[GAME_PORT] = getGlobalNumber(L, "game_port");
-		if(m_confInteger[ADMIN_PORT] == 0)
-			m_confInteger[ADMIN_PORT] = getGlobalNumber(L, "admin_port");
+			m_confInteger[GAME_PORT] = getGlobalNumber(L, "GAME_PORT");
 		if(m_confInteger[LOGIN_PORT] == 0)
-			m_confInteger[LOGIN_PORT] = getGlobalNumber(L, "login_port");
+			m_confInteger[LOGIN_PORT] = getGlobalNumber(L, "LOGIN_PORT");
 		if(m_confInteger[STATUS_PORT] == 0)
-			m_confInteger[STATUS_PORT] = getGlobalNumber(L, "status_port");
+			m_confInteger[STATUS_PORT] = getGlobalNumber(L, "STATUS_PORT");
 
-#if defined __CONFIG_V2__
-		unsigned int pos = _filename.rfind("/");
-		std::string configPath = "";
-		if(pos != std::string::npos)
-			configPath = _filename.substr(0, pos+1);
-
-		m_confString[DATA_DIRECTORY] = configPath + getGlobalString(L, "datadir", "data/");
-		m_confString[MAP_FILE] = m_confString[DATA_DIRECTORY] + getGlobalString(L, "map");
-		m_confString[MAP_STORE_FILE] = m_confString[DATA_DIRECTORY] + getGlobalString(L, "mapstore");
-		m_confString[HOUSE_STORE_FILE] = m_confString[DATA_DIRECTORY] + getGlobalString(L, "housestore");
-#else
-		m_confString[DATA_DIRECTORY] = getGlobalString(L, "datadir");
-		m_confString[MAP_FILE] = getGlobalString(L, "map");
-		m_confString[MAP_STORE_FILE] = getGlobalString(L, "mapstore");
-		m_confString[HOUSE_STORE_FILE] = getGlobalString(L, "housestore");
-#endif
-		m_confString[HOUSE_RENT_PERIOD] = getGlobalString(L, "houserentperiod", "monthly");
-		m_confString[MAP_KIND] = getGlobalString(L, "mapkind");
+		m_confString[DATA_DIRECTORY] = getGlobalString(L, "DATA_DIRECTORY");
+		m_confString[MAP_FILE] = getGlobalString(L, "MAP_FILE");
+		m_confString[HOUSE_RENT_PERIOD] = getGlobalString(L, "HOUSE_RENT_PERIOD", "monthly");
+		m_confString[MAP_KIND] = getGlobalString(L, "MAP_KIND");
 		if(getGlobalString(L, "md5passwords") != ""){
 			std::cout << "Warning: [ConfigManager] md5passwords is deprecated. Use passwordtype instead." << std::endl;
 		}
-		m_confString[PASSWORD_TYPE_STR] = getGlobalString(L, "passwordtype");
-		m_confString[PASSWORD_SALT] = getGlobalString(L, "passwordsalt", "");
-		m_confString[WORLD_TYPE] = getGlobalString(L, "worldtype");
-		m_confString[SQL_HOST] = getGlobalString(L, "sql_host");
-		m_confString[SQL_USER] = getGlobalString(L, "sql_user");
-		m_confString[SQL_PASS] = getGlobalString(L, "sql_pass");
-		m_confString[SQL_DB] = getGlobalString(L, "sql_db");
-		m_confString[SQL_TYPE] = getGlobalString(L, "sql_type");
-		m_confInteger[SQL_PORT] = getGlobalNumber(L, "sql_port");
+		m_confString[PASSWORD_TYPE_STR] = getGlobalString(L, "PASSWORD_TYPE_STR");
+		m_confString[PASSWORD_SALT] = getGlobalString(L, "PASSWORD_SALT", "");
+		m_confString[WORLD_TYPE] = getGlobalString(L, "WORLD_TYPE");
+		m_confString[SQL_HOST] = getGlobalString(L, "SQL_HOST");
+		m_confString[SQL_USER] = getGlobalString(L, "SQL_USER");
+		m_confString[SQL_PASS] = getGlobalString(L, "SQL_PASS");
+		m_confString[SQL_DB] = getGlobalString(L, "SQL_DB");
+		m_confString[SQL_TYPE] = getGlobalString(L, "SQL_TYPE");
+		m_confInteger[SQL_PORT] = getGlobalNumber(L, "SQL_PORT");
 		m_confInteger[PASSWORD_TYPE] = PASSWORD_TYPE_PLAIN;
 	}
 
-	m_confString[LOGIN_MSG] = getGlobalString(L, "loginmsg", "Welcome.");
-	m_confString[SERVER_NAME] = getGlobalString(L, "servername");
-	m_confString[WORLD_NAME] = getGlobalString(L, "worldname", "Gameworld");
+	m_confString[LOGIN_MSG] = getGlobalString(L, "LOGIN_MSG", "Welcome.");
+	m_confString[SERVER_NAME] = getGlobalString(L, "SERVER_NAME");
+	m_confString[WORLD_NAME] = getGlobalString(L, "WORLD_NAME", "Gameworld");
 	m_confString[OWNER_NAME] = getGlobalString(L, "ownername");
-	m_confString[OWNER_EMAIL] = getGlobalString(L, "owneremail");
-	m_confString[URL] = getGlobalString(L, "url");
-	m_confString[LOCATION] = getGlobalString(L, "location");
-	m_confString[MAP_STORAGE_TYPE] = getGlobalString(L, "map_store_type", "relational");
-	m_confInteger[LOGIN_TRIES] = getGlobalNumber(L, "logintries", 5);
-	m_confInteger[RETRY_TIMEOUT] = getGlobalNumber(L, "retrytimeout", 30 * 1000);
-	m_confInteger[LOGIN_TIMEOUT] = getGlobalNumber(L, "logintimeout", 5 * 1000);
-	m_confString[MOTD] = getGlobalString(L, "motd");
-	m_confInteger[MOTD_NUM] = getGlobalNumber(L, "motdnum");
-	m_confInteger[MAX_PLAYERS] = getGlobalNumber(L, "maxplayers");
-	m_confInteger[EXHAUSTED] = getGlobalNumber(L, "exhausted", 30000);
-	m_confInteger[EXHAUSTED_ADD] = getGlobalNumber(L, "exhaustedadd", 5000);
-	m_confInteger[COMBAT_EXHAUSTED] = getGlobalNumber(L, "fightexhausted", 2000);
-	m_confInteger[HEAL_EXHAUSTED] = getGlobalNumber(L, "healexhausted", 1000);
-	m_confInteger[STAIRHOP_EXHAUSTED] = getGlobalNumber(L, "stairhop_exhausted", 2*1000);
-	m_confInteger[IN_FIGHT_DURATION] = getGlobalNumber(L, "in_fight_duration", 60 * 1000);
+	m_confString[OWNER_EMAIL] = getGlobalString(L, "OWNER_EMAIL");
+	m_confString[URL] = getGlobalString(L, "URL");
+	m_confString[LOCATION] = getGlobalString(L, "LOCATION");
+	m_confString[MAP_STORAGE_TYPE] = getGlobalString(L, "MAP_STORAGE_TYPE", "relational");
+	m_confInteger[LOGIN_TRIES] = getGlobalNumber(L, "LOGIN_TRIES", 5);
+	m_confInteger[RETRY_TIMEOUT] = getGlobalNumber(L, "RETRY_TIMEOUT", 30 * 1000);
+	m_confInteger[LOGIN_TIMEOUT] = getGlobalNumber(L, "LOGIN_TIMEOUT", 5 * 1000);
+	m_confString[MOTD] = getGlobalString(L, "MOTD");
+	m_confInteger[MOTD_NUM] = getGlobalNumber(L, "MOTD_NUM");
+	m_confInteger[MAX_PLAYERS] = getGlobalNumber(L, "MAX_PLAYERS");
+	m_confInteger[STAIRHOP_EXHAUSTED] = getGlobalNumber(L, "STAIRHOP_EXHAUSTED", 2*1000);
+	m_confInteger[IN_FIGHT_DURATION] = getGlobalNumber(L, "IN_FIGHT_DURATION", 60 * 1000);
 	m_confInteger[HUNTING_KILL_DURATION] = getGlobalNumber(L, "hunting_kill_duration", 60 * 1000);
-	m_confInteger[FIELD_OWNERSHIP_DURATION] = getGlobalNumber(L, "field_ownership_duration", 5 * 1000);
-	m_confInteger[MIN_ACTIONTIME] = getGlobalNumber(L, "minactioninterval", 200);
-	m_confInteger[MIN_ACTIONEXTIME] = getGlobalNumber(L, "minactionexinterval", 1000);
-	m_confInteger[DEFAULT_DESPAWNRANGE] = getGlobalNumber(L, "despawnrange", 2);
-	m_confInteger[DEFAULT_DESPAWNRADIUS] = getGlobalNumber(L, "despawnradius", 50);
-	m_confInteger[ALLOW_CLONES] = getGlobalBoolean(L, "allowclones", false);
-	m_confInteger[PARTY_MEMBER_EXP_BONUS] = getGlobalNumber(L, "party_exp_mul", 5);
-	m_confInteger[RATE_EXPERIENCE] = getGlobalNumber(L, "rate_exp", 1);
-	m_confInteger[RATE_SKILL] = getGlobalNumber(L, "rate_skill", 1);
-	m_confInteger[RATE_LOOT] = getGlobalNumber(L, "rate_loot", 1);
-	m_confInteger[RATE_MAGIC] = getGlobalNumber(L, "rate_mag", 1);
-	m_confInteger[RATE_SPAWN] = getGlobalNumber(L, "rate_spawn", 1);
-	m_confInteger[LEVEL_TO_ROOK] = getGlobalNumber(L, "level_to_rook", 0);
-	m_confInteger[ROOK_TEMPLE_ID] = getGlobalNumber(L, "rook_temple_id", 1);
-	m_confInteger[STORAGE_SENDROOK] = getGlobalNumber(L, "storage_sendrook", 49786);
-	m_confInteger[MAX_MESSAGEBUFFER] = getGlobalNumber(L, "maxmessagebuffer", 4);
-	m_confInteger[SAVE_CLIENT_DEBUG_ASSERTIONS] = getGlobalBoolean(L, "saveclientdebug", true);
-	m_confInteger[CHECK_ACCOUNTS] = getGlobalBoolean(L, "checkaccounts", true);
-	m_confInteger[USE_BALANCE_HOUSE_PAYING] = getGlobalBoolean(L, "use_balance_house_paying", true);
-	m_confInteger[PREMIUM_ONLY_BEDS] = getGlobalBoolean(L, "premonlybeds", true);
-	m_confInteger[UNJUST_SKULL_DURATION] = getGlobalNumber(L, "unjust_skull_duration", 15*60*1000);
-	m_confInteger[KILLS_PER_DAY_RED_SKULL] = getGlobalNumber(L, "kills_per_day_red_skull", 3);
-	m_confInteger[KILLS_PER_WEEK_RED_SKULL] = getGlobalNumber(L, "kills_per_week_red_skull", 5);
-	m_confInteger[KILLS_PER_MONTH_RED_SKULL] = getGlobalNumber(L, "kills_per_month_red_skull", 10);
-	m_confInteger[RED_SKULL_DURATION] = getGlobalNumber(L, "red_skull_duration", 30*24*60*60);
-	m_confInteger[REMOVE_AMMUNITION] = getGlobalBoolean(L, "remove_ammunition", true);
-	m_confInteger[REMOVE_RUNE_CHARGES] = getGlobalBoolean(L, "remove_rune_charges", true);
-	m_confInteger[REMOVE_WEAPON_CHARGES] = getGlobalBoolean(L, "remove_weapon_charges", true);
-	m_confInteger[LOGIN_ATTACK_DELAY] = getGlobalNumber(L, "login_attack_delay", 10*1000);
-	m_confInteger[IDLE_TIME] = getGlobalNumber(L, "max_idle_time", 16*60*1000);
-	m_confInteger[IDLE_TIME_WARNING] = getGlobalNumber(L, "max_idle_time_warning", 15*60*1000);
-	m_confInteger[HOUSE_ONLY_PREMIUM] = getGlobalBoolean(L, "house_only_premium", true);
-	m_confInteger[HOUSE_LEVEL] = getGlobalNumber(L, "house_level", 1);
-	m_confInteger[HOUSE_TILE_PRICE] = getGlobalNumber(L, "house_tile_price", 100);
-	m_confInteger[SHOW_HOUSE_PRICES] = getGlobalBoolean(L, "show_house_prices", false);
-	m_confInteger[BROADCAST_BANISHMENTS] = getGlobalBoolean(L, "broadcast_banishments", false);
-	m_confInteger[NOTATIONS_TO_BAN] = getGlobalNumber(L, "notations_to_banishment", 3);
-	m_confInteger[WARNINGS_TO_FINALBAN] = getGlobalNumber(L, "warnings_to_final_banishment", 4);
-	m_confInteger[WARNINGS_TO_DELETION] = getGlobalNumber(L, "warnings_to_deletion", 5);
-	m_confInteger[BAN_LENGTH] = getGlobalNumber(L, "banishment_length", 7 * 86400);
-	m_confInteger[FINALBAN_LENGTH] = getGlobalNumber(L, "final_banishment_length", 30 * 86400);
-	m_confInteger[IPBANISHMENT_LENGTH] = getGlobalNumber(L, "ip_banishment_length", 86400);
-	m_confInteger[ALLOW_GAMEMASTER_MULTICLIENT] = getGlobalBoolean(L, "allow_gamemaster_multiclient", false);
-	m_confInteger[DEATH_ASSIST_COUNT] = getGlobalNumber(L, "death_assist_count", 1);
-	m_confInteger[LAST_HIT_PZBLOCK_ONLY] = getGlobalBoolean(L, "last_hit_pzblock_only", true);
-	m_confInteger[DEFENSIVE_PZ_LOCK] = getGlobalBoolean(L, "defensive_pz_lock", false);
-	m_confInteger[DISTANCE_WEAPON_INTERRUPT_SWING] = getGlobalBoolean(L, "distance_weapon_interrupt_swing", true);
-	m_confInteger[RATES_FOR_PLAYER_KILLING] = getGlobalBoolean(L, "rates_for_player_killing", false);
-	m_confInteger[RATE_EXPERIENCE_PVP] = getGlobalNumber(L, "rate_exp_pvp", 0);
-	m_confInteger[FIST_STRENGTH] = getGlobalNumber(L, "fist_strength", 7);
-	m_confInteger[STATUSQUERY_TIMEOUT] = getGlobalNumber(L, "statustimeout", 30 * 1000);
-	m_confInteger[CAN_ROPE_CREATURES] = getGlobalBoolean(L, "can_rope_creatures", true);
-	m_confString[DEATH_MSG] = getGlobalString(L, "death_msg", "You are dead.");
-	m_confInteger[CAN_ATTACK_INVISIBLE] = getGlobalBoolean(L, "can_attack_invisible", false);
-	m_confInteger[MIN_PVP_LEVEL] = getGlobalNumber(L, "min_pvp_level", 0);
+	m_confInteger[FIELD_OWNERSHIP_DURATION] = getGlobalNumber(L, "FIELD_OWNERSHIP_DURATION", 5 * 1000);
+	m_confInteger[MIN_ACTIONTIME] = getGlobalNumber(L, "MIN_ACTIONTIME", 200);
+	m_confInteger[MIN_ACTIONEXTIME] = getGlobalNumber(L, "MIN_ACTIONEXTIME", 1000);
+	m_confInteger[DEFAULT_DESPAWNRADIUS] = getGlobalNumber(L, "DEFAULT_DESPAWNRADIUS", 50);
+	m_confInteger[ALLOW_CLONES] = getGlobalBoolean(L, "ALLOW_CLONES", false);
+	m_confInteger[PARTY_MEMBER_EXP_BONUS] = getGlobalNumber(L, "PARTY_MEMBER_EXP_BONUS", 5);
+	m_confInteger[RATE_EXPERIENCE] = getGlobalNumber(L, "RATE_EXPERIENCE", 1);
+	m_confInteger[RATE_SKILL] = getGlobalNumber(L, "RATE_SKILL", 1);
+	m_confInteger[RATE_LOOT] = getGlobalNumber(L, "RATE_LOOT", 1);
+	m_confInteger[RATE_MAGIC] = getGlobalNumber(L, "RATE_MAGIC", 1);
+	m_confInteger[RATE_SPAWN] = getGlobalNumber(L, "RATE_SPAWN", 1);
+	m_confInteger[MAX_MESSAGEBUFFER] = getGlobalNumber(L, "MAX_MESSAGEBUFFER", 4);
+	m_confInteger[SAVE_CLIENT_DEBUG_ASSERTIONS] = getGlobalBoolean(L, "SAVE_CLIENT_DEBUG_ASSERTIONS", true);
+	m_confInteger[CHECK_ACCOUNTS] = getGlobalBoolean(L, "CHECK_ACCOUNTS", true);
+	m_confInteger[USE_BALANCE_HOUSE_PAYING] = getGlobalBoolean(L, "USE_BALANCE_HOUSE_PAYING", true);
+	m_confInteger[PREMIUM_ONLY_BEDS] = getGlobalBoolean(L, "PREMIUM_ONLY_BEDS", true);
+	m_confInteger[UNJUST_SKULL_DURATION] = getGlobalNumber(L, "UNJUST_SKULL_DURATION", 15*60*1000);
+	m_confInteger[KILLS_PER_DAY_RED_SKULL] = getGlobalNumber(L, "KILLS_PER_DAY_RED_SKULL", 3);
+	m_confInteger[KILLS_PER_WEEK_RED_SKULL] = getGlobalNumber(L, "KILLS_PER_WEEK_RED_SKULL", 5);
+	m_confInteger[KILLS_PER_MONTH_RED_SKULL] = getGlobalNumber(L, "KILLS_PER_MONTH_RED_SKULL", 10);
+	m_confInteger[RED_SKULL_DURATION] = getGlobalNumber(L, "RED_SKULL_DURATION", 30*24*60*60);
+	m_confInteger[REMOVE_AMMUNITION] = getGlobalBoolean(L, "REMOVE_AMMUNITION", true);
+	m_confInteger[REMOVE_RUNE_CHARGES] = getGlobalBoolean(L, "REMOVE_RUNE_CHARGES", true);
+	m_confInteger[REMOVE_WEAPON_CHARGES] = getGlobalBoolean(L, "REMOVE_WEAPON_CHARGES", true);
+	m_confInteger[LOGIN_ATTACK_DELAY] = getGlobalNumber(L, "LOGIN_ATTACK_DELAY", 10*1000);
+	m_confInteger[IDLE_TIME] = getGlobalNumber(L, "IDLE_TIME", 16*60*1000);
+	m_confInteger[IDLE_TIME_WARNING] = getGlobalNumber(L, "IDLE_TIME_WARNING", 15*60*1000);
+	m_confInteger[HOUSE_ONLY_PREMIUM] = getGlobalBoolean(L, "HOUSE_ONLY_PREMIUM", true);
+	m_confInteger[HOUSE_LEVEL] = getGlobalNumber(L, "HOUSE_LEVEL", 1);
+	m_confInteger[SHOW_HOUSE_PRICES] = getGlobalBoolean(L, "SHOW_HOUSE_PRICES", false);
+	m_confInteger[BROADCAST_BANISHMENTS] = getGlobalBoolean(L, "BROADCAST_BANISHMENTS", false);
+	m_confInteger[NOTATIONS_TO_BAN] = getGlobalNumber(L, "NOTATIONS_TO_BAN", 3);
+	m_confInteger[WARNINGS_TO_FINALBAN] = getGlobalNumber(L, "WARNINGS_TO_FINALBAN", 4);
+	m_confInteger[WARNINGS_TO_DELETION] = getGlobalNumber(L, "WARNINGS_TO_DELETION", 5);
+	m_confInteger[BAN_LENGTH] = getGlobalNumber(L, "BAN_LENGTH", 7 * 86400);
+	m_confInteger[FINALBAN_LENGTH] = getGlobalNumber(L, "FINALBAN_LENGTH", 30 * 86400);
+	m_confInteger[IPBANISHMENT_LENGTH] = getGlobalNumber(L, "IPBANISHMENT_LENGTH", 86400);
+	m_confInteger[ALLOW_GAMEMASTER_MULTICLIENT] = getGlobalBoolean(L, "ALLOW_GAMEMASTER_MULTICLIENT", false);
+	m_confInteger[DEATH_ASSIST_COUNT] = getGlobalNumber(L, "DEATH_ASSIST_COUNT", 1);
+	m_confInteger[LAST_HIT_PZBLOCK_ONLY] = getGlobalBoolean(L, "LAST_HIT_PZBLOCK_ONLY", true);
+	m_confInteger[DEFENSIVE_PZ_LOCK] = getGlobalBoolean(L, "DEFENSIVE_PZ_LOCK", false);
+	m_confInteger[DISTANCE_WEAPON_INTERRUPT_SWING] = getGlobalBoolean(L, "DISTANCE_WEAPON_INTERRUPT_SWING", true);
+	m_confInteger[RATES_FOR_PLAYER_KILLING] = getGlobalBoolean(L, "RATES_FOR_PLAYER_KILLING", false);
+	m_confInteger[RATE_EXPERIENCE_PVP] = getGlobalNumber(L, "RATE_EXPERIENCE_PVP", 0);
+	m_confInteger[FIST_STRENGTH] = getGlobalNumber(L, "FIST_STRENGTH", 7);
+	m_confInteger[STATUSQUERY_TIMEOUT] = getGlobalNumber(L, "STATUSQUERY_TIMEOUT", 30 * 1000);
+	m_confInteger[CAN_ROPE_CREATURES] = getGlobalBoolean(L, "CAN_ROPE_CREATURES", true);
+	m_confString[DEATH_MSG] = getGlobalString(L, "DEATH_MSG", "You are dead.");
+	m_confInteger[CAN_ATTACK_INVISIBLE] = getGlobalBoolean(L, "CAN_ATTACK_INVISIBLE", false);
+	m_confInteger[MIN_PVP_LEVEL] = getGlobalNumber(L, "MIN_PVP_LEVEL", 0);
 	#ifdef __MIN_PVP_LEVEL_APPLIES_TO_SUMMONS__
-	m_confInteger[MIN_PVP_LEVEL_APPLIES_TO_SUMMONS] = getGlobalBoolean(L, "min_pvp_level_applies_to_summons", true);
+	m_confInteger[MIN_PVP_LEVEL_APPLIES_TO_SUMMONS] = getGlobalBoolean(L, "MIN_PVP_LEVEL_APPLIES_TO_SUMMONS", true);
 	#endif
-	m_confInteger[HEIGHT_MINIMUM_FOR_IDLE] = getGlobalNumber(L, "height_minimum_for_idle", 3);
-	m_confInteger[EXPERIENCE_STAGES] = getGlobalBoolean(L, "experience_stages", false);
-	m_confInteger[PUSH_INTERVAL] = getGlobalNumber(L, "push_interval", 2000);
-	m_confInteger[MOVEITEM_TIME] = getGlobalNumber(L, "move_item_interval", 500);
-	m_confInteger[MAX_STACK_SIZE] = getGlobalNumber(L, "max_stack_size", 1000);
-	m_confInteger[PVP_DAMAGE] = getGlobalNumber(L, "pvp_damage", 50);
-	m_confInteger[WANDS_INTERRUPT_SWING] = getGlobalBoolean(L, "wands_interrupt_swing", true);
-	m_confInteger[PLAYER_QUERYDESTINATION_DEEPNESS] = getGlobalNumber(L, "player_querydestination_deepness", -1);
-	m_confInteger[TILE_LIMIT] = getGlobalNumber(L, "tile_limit", 0);
-	m_confInteger[PROTECTION_TILE_LIMIT] = getGlobalNumber(L, "protection_tile_limit", 0);
-	m_confInteger[HOUSE_TILE_LIMIT]	= getGlobalNumber(L, "house_tile_limit", 0);
-	m_confInteger[LUA_EXCEPTED_TYPE_ERRORS_ENABLED]	= getGlobalBoolean(L, "lua_excepted_type_errors_enabled", false);
-	m_confInteger[MAX_AMOUNT_ITEMS_INSIDE_CONTAINERS] = getGlobalNumber(L, "max_amount_items_inside_containers", 2000);
-	m_confInteger[MAX_DEEPNESS_OF_CHAIN_OF_CONTAINERS] = getGlobalNumber(L, "max_deepness_of_chain_of_containers", 500);
-	m_confInteger[BIND_ONLY_GLOBAL_ADDRESS]	= getGlobalBoolean(L, "bind_only_global_address", false);
-	m_confInteger[MAX_CONTAINERS_INSIDE_PLAYER_INVENTORY] = getGlobalNumber(L, "max_containers_inside_player_inventory", 100);
-	m_confInteger[USE_RUNE_LEVEL_REQUIREMENTS] = getGlobalBoolean(L, "use_rune_level_requirements", true);
-	m_confInteger[CONTAINER_ITEMS_AUTO_STACK] = getGlobalBoolean(L, "container_items_auto_stack", false);
-	m_confInteger[KILLS_TO_BAN] = getGlobalNumber(L, "kills_to_ban", 20);
-	
+	m_confInteger[HEIGHT_MINIMUM_FOR_IDLE] = getGlobalNumber(L, "HEIGHT_MINIMUM_FOR_IDLE", 3);
+	m_confInteger[EXPERIENCE_STAGES] = getGlobalBoolean(L, "EXPERIENCE_STAGES", false);
+	m_confInteger[PVP_DAMAGE] = getGlobalNumber(L, "PVP_DAMAGE", 50);
+	m_confInteger[WANDS_INTERRUPT_SWING] = getGlobalBoolean(L, "WANDS_INTERRUPT_SWING", true);
+	m_confInteger[LUA_EXCEPTED_TYPE_ERRORS_ENABLED]	= getGlobalBoolean(L, "LUA_EXCEPTED_TYPE_ERRORS_ENABLED", false);
+	m_confInteger[BIND_ONLY_GLOBAL_ADDRESS]	= getGlobalBoolean(L, "BIND_ONLY_GLOBAL_ADDRESS", false);
+	m_confInteger[USE_RUNE_LEVEL_REQUIREMENTS] = getGlobalBoolean(L, "USE_RUNE_LEVEL_REQUIREMENTS", true);
+	m_confInteger[CONTAINER_ITEMS_AUTO_STACK] = getGlobalBoolean(L, "CONTAINER_ITEMS_AUTO_STACK", false);
+	m_confInteger[UPDATE_DATABASE_HOUSES] = getGlobalBoolean(L, "UPDATE_DATABASE_HOUSES", false);
+	m_confInteger[DECREASE_SPAWN_REGEN] = getGlobalNumber(L, "DECREASE_SPAWN_REGEN", 0);
+	m_confInteger[RESTORE_MAP_DATA] = getGlobalBoolean(L, "RESTORE_MAP_DATA", true);
+	m_confInteger[KILLS_TO_BAN] = getGlobalNumber(L, "KILLS_TO_BAN", 10);
+	m_confInteger[GOLD_DROP_CHANCE] = getGlobalNumber(L, "GOLD_DROP_CHANCE", 0);
+	m_confInteger[ACCOUNT_LOCK_DURATION] = getGlobalNumber(L, "ACCOUNT_LOCK_DURATION", 5 * 60 * 1000);
+	m_confInteger[IP_LOGIN_TRIES] = getGlobalNumber(L, "IP_LOGIN_TRIES", 10);
+	m_confInteger[MAX_PACKETS_PER_SECOND] = getGlobalNumber(L, "MAX_PACKETS_PER_SECOND", 25);
+
 	m_isLoaded = true;
 	return true;
 }

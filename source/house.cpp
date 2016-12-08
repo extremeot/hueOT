@@ -112,8 +112,8 @@ void House::updateDoorDescription()
 	else{
 		houseDescription << "Nobody owns this house.";
 		if(g_config.getNumber(ConfigManager::SHOW_HOUSE_PRICES)){
-			uint32_t price = getTileCount() * g_config.getNumber(ConfigManager::HOUSE_TILE_PRICE);
-			houseDescription << std::endl << "It costs " << price << " gold coins.";
+			uint32_t price = getRent();
+			houseDescription << std::endl << "It costs " << price*10 << " gold coins.";
 			std::string strPeriod;
 			Houses::getInstance().getRentPeriodString(strPeriod);
 			if(strPeriod != "never"){
@@ -789,6 +789,285 @@ Houses::Houses()
 Houses::~Houses()
 {
 	//
+}
+
+bool Houses::loadHouseAreas()
+{
+	xmlDocPtr doc = xmlParseFile("data/world/houseareas.xml");
+	if (doc){
+		xmlNodePtr root, areaNode;
+		root = xmlDocGetRootElement(doc);
+		if (xmlStrcmp(root->name, (const xmlChar*)"houseareas") != 0){
+			xmlFreeDoc(doc);
+			return false;
+		}
+
+		int intValue;
+		int totalHouseAreas = 0;
+		std::string strValue;
+
+		areaNode = root->children;
+		while (areaNode){
+			HouseArea area;
+			if (xmlStrcmp(areaNode->name, (const xmlChar*)"area") == 0){
+				if (readXMLInteger(areaNode, "id", intValue))
+				{
+					area.AreaId = intValue;
+				}
+				else {
+					std::cout << "HouseAreas: Missing area ID!" << std::endl;
+				}
+
+				if (readXMLString(areaNode, "name", strValue))
+				{
+					area.Name = strValue;
+				}
+
+				if (readXMLInteger(areaNode, "sqm", intValue))
+				{
+					area.SQMPrice = intValue;
+				}
+
+				if (readXMLInteger(areaNode, "depot", intValue))
+				{
+					area.DepotId = intValue;
+				}
+
+				AddHouseArea(area);
+				totalHouseAreas++;
+			}
+
+			areaNode = areaNode->next;
+		}
+
+		xmlFreeDoc(doc);
+		return true;
+	}
+
+	return false;
+}
+
+bool Houses::loadSpecialHouses()
+{
+	xmlDocPtr doc = xmlParseFile("data/world/houses.xml");
+	if (doc){
+		xmlNodePtr root, houseNode, fieldNode;
+		root = xmlDocGetRootElement(doc);
+
+		if (xmlStrcmp(root->name, (const xmlChar*)"houses") != 0){
+			xmlFreeDoc(doc);
+			return false;
+		}
+
+		int intValue;
+		int totalHouses = 0;
+		std::string strValue;
+
+		houseNode = root->children;
+		while (houseNode){
+			if (xmlStrcmp(houseNode->name, (const xmlChar*)"house") == 0){
+				int _houseid = 0;
+				Position entryPos(0, 0, 0);
+
+				if (!readXMLInteger(houseNode, "id", _houseid)){
+					xmlFreeDoc(doc);
+					return false;
+				}
+
+				House* house = Houses::getInstance().getHouse(_houseid - 1, true);
+				if (!house){
+					std::cout << "Special Houses: is this house ID in use? " << _houseid << std::endl;
+					xmlFreeDoc(doc);
+					return false;
+				}
+
+				if (readXMLString(houseNode, "name", strValue)){
+					house->setName(strValue);
+				}
+
+				if (readXMLString(houseNode, "description", strValue)){
+					//house->setDescription(strValue);
+				}
+
+				if (readXMLInteger(houseNode, "rentoffset", intValue)){
+					house->rentOffset = intValue;
+				}
+
+				if (readXMLInteger(houseNode, "area", intValue)){
+					house->area = intValue;
+
+					house->houseArea = Houses::getInstance().getHouseAreaById(intValue);
+					house->setTownId(house->houseArea.DepotId);
+				}
+				else {
+					std::cout << "Missing area for house: " << house->getName() << std::endl;
+				}
+
+				if (readXMLString(houseNode, "guildhouse", strValue)){
+					house->setGuildHall(strValue == "true" ? true : false);
+				}
+
+				if (readXMLString(houseNode, "exit", strValue)){
+					std::vector<std::string> posList = explodeString(strValue, ",");
+					entryPos.x = atoi(posList[0].c_str());
+					entryPos.y = atoi(posList[1].c_str());
+					entryPos.z = atoi(posList[2].c_str());
+				}
+				else {
+					std::cout << "Missing house exit for house " << house->getName() << std::endl;
+				}
+
+				if (entryPos.x == 0 && entryPos.y == 0 && entryPos.z == 0){
+					std::cout << "Warning: [Houses::loadHousesXML] House entry not set"
+						<< " - Name: " << house->getName()
+						<< " - House id: " << _houseid << std::endl;
+				}
+
+				// House fields
+				int houseDoorId = 1;
+				fieldNode = houseNode->children;
+				house->TotalSQMs = 0;
+
+				while (fieldNode)
+				{
+					if (xmlStrcmp(fieldNode->name, (const xmlChar*)"fields") == 0){
+						Position fieldCoord;
+						if (readXMLString(fieldNode, "coord", strValue)){
+							house->TotalSQMs = house->TotalSQMs + 1;
+							std::vector<std::string> posList = explodeString(strValue, ",");
+							fieldCoord.x = atoi(posList[0].c_str());
+							fieldCoord.y = atoi(posList[1].c_str());
+							fieldCoord.z = atoi(posList[2].c_str());
+
+							Tile* tempTile = g_game.getTile(fieldCoord.x, fieldCoord.y, fieldCoord.z);
+
+							if (tempTile && (tempTile->getDoorItem()) && !tempTile->isHouseTile())
+							{
+								// This is a small trick to get map mapped objects, since OTServ houses are loaded inside the map
+								// Without this house tiles would be null tiles
+								std::vector<Item*> items;
+								for (int32_t i = tempTile->getThingCount(); i > 0; --i)
+								{
+									Item* item = tempTile->__getThing(i - 1)->getItem();
+									if (!item)
+										continue;
+
+									// We want doors!
+									if (item->getDoor())
+									{
+										item->getDoor()->setDoorId(houseDoorId);
+										houseDoorId++;
+										house->addDoor(item->getDoor());
+									}
+
+									// When we're calling this over, houses were loaded up, so we don't want to duplicate items
+									// We just want to add unmoveable items, like walls, beds, etc ...
+									if (item->isMoveable())
+										continue;
+
+									items.push_back(item);
+								}
+
+
+								tempTile = new HouseTile(fieldCoord.x, fieldCoord.y, fieldCoord.z, house);
+
+								if (!items.empty())
+								{
+									for (std::vector<Item*>::iterator iter = items.begin();
+										iter != items.end();
+										++iter)
+									{
+										const Item* item = *iter;
+										if (item->isNotMoveable())
+											tempTile->__internalAddThing(*iter);
+									}
+								}
+
+								g_game.setTile(tempTile);
+								house->addTile(static_cast<HouseTile*>(tempTile));
+							}
+							else {
+								for (int x = -1; x != 1; x++)
+								{
+									for (int y = -1; y != 1; y++)
+									{
+										// Make sure we won't debug on null tiles, we do not know if Cip had any :s
+										if (g_game.getTile(fieldCoord.x + (x), fieldCoord.y + (y), fieldCoord.z))
+										{
+											Tile* tile = g_game.getTile(fieldCoord.x + (x), fieldCoord.y + (y), fieldCoord.z);
+
+											if (!tile->isHouseTile())
+											{
+												// This is a small trick to get map mapped objects, since OTServ houses are loaded inside the map
+												// Without this house tiles would be null tiles
+												std::vector<Item*> items;
+												for (int32_t i = tile->getThingCount(); i > 0; --i)
+												{
+													Item* item = tile->__getThing(i - 1)->getItem();
+													if (!item)
+														continue;
+
+													// We want doors!
+													if (item->getDoor())
+													{
+														item->getDoor()->setDoorId(houseDoorId);
+														houseDoorId++;
+														house->addDoor(item->getDoor());
+													}
+
+													// When we're calling this over, houses were loaded up, so we don't want to duplicate items
+													// We just want to add unmoveable items, like walls, beds, etc ...
+													if (item->isMoveable())
+														continue;
+
+													items.push_back(item);
+												}
+
+
+												tile = new HouseTile(fieldCoord.x + (x), fieldCoord.y + (y), fieldCoord.z, house);
+
+												if (!items.empty())
+												{
+													for (std::vector<Item*>::iterator iter = items.begin();
+														iter != items.end();
+														++iter)
+													{
+														const Item* item = *iter;
+														if (item->isNotMoveable())
+															tile->__internalAddThing(*iter);
+													}
+												}
+
+												g_game.setTile(tile);
+												house->addTile(static_cast<HouseTile*>(tile));
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+
+					fieldNode = fieldNode->next;
+				}
+
+				// Calculated house rent 
+				house->setRent(house->rentOffset + (house->TotalSQMs * house->houseArea.SQMPrice));
+				house->setEntryPos(entryPos);
+				house->setOwner(0);
+				house->setTownId(house->houseArea.DepotId);
+				totalHouses++;
+			}
+
+			houseNode = houseNode->next;
+		}
+
+		xmlFreeDoc(doc);
+		return true;
+	}
+
+	std::cout << "Could not load houses." << std::endl;
+	return false;
 }
 
 House* Houses::getHouseByPlayerId(uint32_t playerId)

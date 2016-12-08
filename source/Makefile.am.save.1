@@ -79,3 +79,12 @@ otserv_SOURCES = $(MAYBE_MYSQL) $(MAYBE_SQLITE) $(MAYBE_ODBC) $(MAYBE_PGSQL) \
 
 pkgsysconfdir=$(sysconfdir)/$(PACKAGE)
 
+pkgsysconf_DATA = config.lua
+
+config.lua:
+	cp $(srcdir)/config.lua.dist config.lua
+
+
+distclean-local:
+	-rm -f config.lua.dist config.lua
+

@@ -30,6 +30,7 @@
 #include <iostream>
 #include <ctime>
 #include <cstring>
+#include <random>
 
 typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
 
@@ -38,6 +39,9 @@ enum DistributionType_t {
 	DISTRO_SQUARE,
 	DISTRO_NORMAL
 };
+
+std::mt19937& getRandomGenerator();
+int32_t uniform_random(int32_t minNumber, int32_t maxNumber);
 
 inline uint16_t swap_uint16(uint16_t x)
 {
@@ -61,14 +65,6 @@ inline int32_t swap_int32(int32_t x)
 {
 	return (int32_t)swap_uint32((uint32_t)x);
 }
-
-/*inline float swap_float32(float x)
-{
-	uint32_t ui = *((uint32_t *)(void *)&x);
-	ui = swap_uint32(ui);
-
-	return *((float *)(void *)&ui);
-}*/
 
 void replaceString(std::string& str, const std::string sought, const std::string replacement);
 void trim_right(std::string& source, const std::string& t = "\n\t ");
@@ -100,7 +96,7 @@ char upchar(char c);
 std::string urlEncode(const char* str);
 std::string urlEncode(const std::string& str);
 
-bool passwordTest(std::string plain, std::string &hash);
+bool passwordTest(std::string plain, std::string hash);
 
 std::string convertIPToString(uint32_t ip);
 //buffer should have at least 21 bytes. dd/mm/yyyy  hh:mm:ss

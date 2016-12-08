@@ -453,11 +453,14 @@ public:
 	bool playerRevokePartyInvitation(uint32_t playerId, uint32_t invitedId);
 	bool playerPassPartyLeadership(uint32_t playerId, uint32_t newLeaderId);
 	bool playerLeaveParty(uint32_t playerId);
+#ifdef __ENABLE_PARTY_SHARE_EXPERIENCE__
+	bool playerEnableSharedPartyExperience(uint32_t playerId, uint8_t sharedExpActive, uint8_t unknown);
+#endif
 	bool playerViolationWindow(uint32_t playerId, std::string targetName, uint8_t reasonId, violationAction_t actionType,
 		std::string comment, uint16_t statementId, uint16_t channelId, bool ipBanishment);
 	bool playerReportBug(uint32_t playerId, std::string comment);
 	bool playerRegisterWalkAction(uint32_t playerId, SchedulerTask* task);
-
+	
 	void cleanup();
 	void shutdown();
 	void FreeThing(Thing* thing);
@@ -493,8 +496,6 @@ public:
 	bool saveServer(bool payHouses, bool shallowSave = false);
 	void saveGameState();
 	void loadGameState();
-	void refreshMap(Map::TileMap::iterator* begin = NULL, int clean_max = 0);
-	void proceduralRefresh(Map::TileMap::iterator* begin = NULL);
 
 	//Events
 	void checkCreatureWalk(uint32_t creatureId);

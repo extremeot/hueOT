@@ -265,10 +265,11 @@ Condition* Condition::createCondition(ConditionId_t _id, ConditionType_t _type, 
 		case CONDITION_DRUNK:
 		case CONDITION_EXHAUST_YELL:
 		case CONDITION_EXHAUST_COMBAT:
-		case CONDITION_EXHAUST_HEAL:
+//		case CONDITION_EXHAUST_HEAL:
 		case CONDITION_EXHAUST_OTHERS:
 		case CONDITION_MUTED:
 		case CONDITION_TRADE_MUTED:
+		case CONDITION_WALK_DELAY:
 		case CONDITION_PACIFIED:
 		{
 			return new ConditionGeneric(_id, _type,_ticks);
@@ -1279,7 +1280,7 @@ bool ConditionDamage::init()
 	if(damageList.empty()){
 		setTicks(0);
 
-		int32_t amount = random_range(minDamage, maxDamage);
+		int32_t amount = random_range(minDamage, maxDamage, DISTRO_NORMAL);
 
 		if(amount != 0){
 			if(startDamage > maxDamage){
@@ -1686,7 +1687,7 @@ bool ConditionSpeed::startCondition(Creature* creature)
 		int32_t min;
 		int32_t max;
 		getFormulaValues(creature->getBaseSpeed(), min, max);
-		speedDelta = random_range(min, max);
+		speedDelta = random_range(min, max, DISTRO_NORMAL);
 	}
 
 	g_game.changeSpeed(creature, speedDelta);
@@ -1727,7 +1728,7 @@ void ConditionSpeed::addCondition(Creature* creature, const Condition* addCondit
 		int32_t min;
 		int32_t max;
 		getFormulaValues(creature->getBaseSpeed(), min, max);
-		speedDelta = random_range(min, max);
+		speedDelta = random_range(min, max, DISTRO_NORMAL);
 	}
 
 	int32_t newSpeedChange = (speedDelta - oldSpeedDelta);

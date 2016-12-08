@@ -39,25 +39,6 @@ class _DBResult;
 #define DBRES_CLASS MySQLResult
 class DatabaseMySQL;
 class MySQLResult;
-
-#elif defined(__USE_SQLITE__)
-#define DATABASE_CLASS DatabaseSQLite
-#define DBRES_CLASS SQLiteResult
-class DatabaseSQLite;
-class SQLiteResult;
-
-#elif defined(__USE_ODBC__)
-#define DATABASE_CLASS DatabaseODBC
-#define DBRES_CLASS ODBCResult
-class DatabaseODBC;
-class ODBCResult;
-
-#elif defined(__USE_PGSQL__)
-#define DATABASE_CLASS DatabasePgSQL
-#define DBRES_CLASS PgSQLResult
-class DatabasePgSQL;
-class PgSQLResult;
-
 #endif
 #endif
 
@@ -318,12 +299,6 @@ protected:
 #ifndef MULTI_SQL_DRIVERS
 #if defined(__USE_MYSQL__)
 #include "databasemysql.h"
-#elif defined(__USE_SQLITE__)
-#include "databasesqlite.h"
-#elif defined(__USE_ODBC__)
-#include "databaseodbc.h"
-#elif defined(__USE_PGSQL__)
-#include "databasepgsql.h"
 #endif
 #endif
 

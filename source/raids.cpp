@@ -75,6 +75,7 @@ bool Raids::loadFromXml(const std::string& _filename)
 				std::string name, file;
 				int32_t interval = 0;
 				int32_t margin = 0;
+				bool big = false;
 
 				if(readXMLString(raidNode, "name", strValue)){
 					name = strValue;
@@ -83,6 +84,10 @@ bool Raids::loadFromXml(const std::string& _filename)
 					std::cout << "[Error] Raids: name tag missing for raid." << std::endl;
 					raidNode = raidNode->next;
 					continue;
+				}
+
+				if (readXMLString(raidNode, "bigraid", strValue)){
+					big = strValue == asLowerCaseString("true");
 				}
 
 				if(readXMLString(raidNode, "file", strValue)){
@@ -98,7 +103,7 @@ bool Raids::loadFromXml(const std::string& _filename)
 				//interval is the average interval between 2 executions of the raid in minutes
 				if((readXMLInteger(raidNode, "interval", intValue) ||
 					readXMLInteger(raidNode, "interval2", intValue)) && intValue > 0 ){
-					interval = intValue * 60;
+					interval = intValue * 1000;
 				}
 				else{
 					std::cout << "[Error] Raids: interval tag missing for raid " << name << std::endl;
@@ -107,13 +112,15 @@ bool Raids::loadFromXml(const std::string& _filename)
 				}
 
 				if(readXMLInteger(raidNode, "margin", intValue) && intValue >= 0){
-					margin = intValue * 60;
+					margin = intValue * 1000;
 				}
 				else{
 					std::cout << "[Warning] Raids: margin tag missing for raid " << name << std::endl;
 				}
 
 				Raid* newRaid = new Raid(name, interval, margin);
+				newRaid->BigRaid = big;
+
 				if(!newRaid){
 					xmlFreeDoc(doc);
 					return false;
@@ -141,6 +148,7 @@ bool Raids::loadFromXml(const std::string& _filename)
 	}
 
 	loaded = true;
+	std::cout << "Raids have been initialized." << std::endl;
 	return true;
 }
 
@@ -163,15 +171,16 @@ void Raids::checkRaids()
 {
 	if(!getRunning()){
 		uint64_t now = OTSYS_TIME();
+		uint64_t raidChance = 0;
+		uint64_t currentChance = uniform_random(0, MAX_RAND_RANGE);
 		for(RaidList::iterator it = raidList.begin(); it != raidList.end(); ++it){
-			if(now >= (getLastRaidEnd() + ((*it)->getMargin() * 1000) )){
-				if(MAX_RAND_RANGE*CHECK_RAIDS_INTERVAL/(*it)->getInterval() >= (uint32_t)random_range(0, MAX_RAND_RANGE)){
-#ifdef __DEBUG_RAID__
+			if(now >= (getLastRaidEnd() + ((*it)->getMargin()) )){
+				raidChance = MAX_RAND_RANGE*CHECK_RAIDS_INTERVAL / (*it)->getInterval();
+				if (raidChance >= currentChance) {
 					char buffer[32];
 					time_t tmp = std::time(NULL);
 					formatDate(tmp, buffer);
-					std::cout << buffer << " [Notice] Raids: Starting raid " << (*it)->getName() << std::endl;
-#endif
+					std::cout << buffer << " Raids: Starting raid " << (*it)->getName() << std::endl;
 					setRunning(*it);
 					(*it)->startRaid();
 					break;
@@ -229,6 +238,7 @@ Raid::Raid(const std::string& _name, uint32_t _interval, uint32_t _marginTime)
 	state = RAIDSTATE_IDLE;
 	margin = _marginTime;
 	nextEventEvent = 0;
+	BigRaid = false;
 }
 
 Raid::~Raid()
@@ -371,7 +381,7 @@ bool RaidEvent::configureRaidEvent(xmlNodePtr eventNode)
 {
 	int intValue;
 	if(readXMLInteger(eventNode, "delay", intValue)){
-		m_delay = intValue;
+		m_delay = intValue * 1000;
 		if(m_delay < RAID_MINTICKS){
 			m_delay = RAID_MINTICKS;
 		}
@@ -510,6 +520,7 @@ bool AreaSpawnEvent::configureRaidEvent(xmlNodePtr eventNode)
 
 	std::string strValue;
 	int intValue;
+	LifeTime = 0;
 
 	if(readXMLInteger(eventNode, "radius", intValue)){
 		int32_t radius = intValue;
@@ -631,7 +642,11 @@ bool AreaSpawnEvent::configureRaidEvent(xmlNodePtr eventNode)
 				}
 			}
 
-			addMonster(name, minAmount, maxAmount);
+			if (readXMLInteger(monsterNode, "lifetime", intValue)){
+				LifeTime = intValue * 1000;
+			}
+
+			addMonster(name, minAmount, maxAmount, LifeTime);
 		}
 		monsterNode = monsterNode->next;
 	}
@@ -653,12 +668,13 @@ void AreaSpawnEvent::addMonster(MonsterSpawn* monsterSpawn)
 	m_spawnList.push_back(monsterSpawn);
 }
 
-void AreaSpawnEvent::addMonster(const std::string& monsterName, uint32_t minAmount, uint32_t maxAmount)
+void AreaSpawnEvent::addMonster(const std::string& monsterName, uint32_t minAmount, uint32_t maxAmount, uint64_t lifetime)
 {
 	MonsterSpawn* monsterSpawn = new MonsterSpawn();
 	monsterSpawn->name = monsterName;
 	monsterSpawn->minAmount = minAmount;
 	monsterSpawn->maxAmount = maxAmount;
+	monsterSpawn->lifetime = lifetime;
 	addMonster(monsterSpawn);
 }
 
@@ -671,6 +687,8 @@ bool AreaSpawnEvent::executeEvent()
 		uint32_t amount = random_range(spawn->minAmount, spawn->maxAmount);
 		for(unsigned int i = 0; i < amount; ++i){
 			Monster* monster = Monster::createMonster(spawn->name);
+			monster->setLifeTime(spawn->lifetime);
+
 			if(!monster){
 				std::cout << "[Error] Raids: Cant create monster " << spawn->name << std::endl;
 				return false;
@@ -679,9 +697,9 @@ bool AreaSpawnEvent::executeEvent()
 			bool success = false;
 			for(int tries = 0; tries < MAXIMUM_TRIES_PER_MONSTER; ++tries){
 				Position pos;
-				pos.x = random_range(m_fromPos.x, m_toPos.x);
-				pos.y = random_range(m_fromPos.y, m_toPos.y);
-				pos.z = random_range(m_fromPos.z, m_toPos.z);
+				pos.x = uniform_random(m_fromPos.x, m_toPos.x);
+				pos.y = uniform_random(m_fromPos.y, m_toPos.y);
+				pos.z = uniform_random(m_fromPos.z, m_toPos.z);
 
 				Tile* tile = g_game.getMap()->getTile(pos);
 				if(tile && !tile->isMoveableBlocking() && !tile->hasFlag(TILESTATE_PROTECTIONZONE) &&

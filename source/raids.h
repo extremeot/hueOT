@@ -37,6 +37,7 @@ struct MonsterSpawn {
 	std::string name;
 	uint32_t minAmount;
 	uint32_t maxAmount;
+	uint64_t lifetime;
 };
 
 //How many times it will try to find a tile to add the monster to before giving up
@@ -114,6 +115,7 @@ public:
 	uint32_t getInterval() {return interval;}
 
 	void stopEvents();
+	bool BigRaid;
 
 private:
 	RaidEventVector raidEvents;
@@ -180,16 +182,18 @@ private:
 
 class AreaSpawnEvent : public RaidEvent{
 public:
-	AreaSpawnEvent() {};
+	AreaSpawnEvent() {
+		LifeTime = 0;
+	};
 	virtual ~AreaSpawnEvent();
 
 	virtual bool configureRaidEvent(xmlNodePtr eventNode);
 
 	void addMonster(MonsterSpawn* monsterSpawn);
-	void addMonster(const std::string& monsterName, uint32_t minAmount, uint32_t maxAmount);
+	void addMonster(const std::string& monsterName, uint32_t minAmount, uint32_t maxAmount, uint64_t lifetime = 0);
 
 	virtual bool executeEvent();
-
+	uint64_t LifeTime;
 private:
 	MonsterSpawnList m_spawnList;
 	Position m_fromPos, m_toPos;

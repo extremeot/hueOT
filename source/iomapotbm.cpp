@@ -72,7 +72,7 @@ Tile* IOMapOTBM::createTile(Item*& ground, Item* item, int px, int py, int pz)
 		}
 		
 		tile->__internalAddThing(ground);
-		// ground->__startDecaying();
+		ground->__startDecaying();
 		ground = NULL;
 	}
 	else{
@@ -146,7 +146,7 @@ bool IOMapOTBM::loadMap(Map* map, const std::string& identifier)
 		std::cout << "Warning: [OTBM loader] This map needs uses an incorrect version of items.otb." <<std::endl;
 	}
 
-	std::cout << "Map size: " << root_header.width << "x" << root_header.height << std::endl;
+	std::cout << "Loading map..." << std::endl;
 	map->mapWidth = root_header.width;
 	map->mapHeight = root_header.height;
 
@@ -173,7 +173,6 @@ bool IOMapOTBM::loadMap(Map* map, const std::string& identifier)
 				return false;
 			}
 
-			std::cout << "Map description: " << mapDescription << std::endl;
 			break;
 		case OTBM_ATTR_EXT_SPAWN_FILE:
 			if(!propStream.GET_STRING(tmp)){
@@ -323,12 +322,18 @@ bool IOMapOTBM::loadMap(Map* map, const std::string& identifier)
 
 						case OTBM_ATTR_ITEM:
 						{
-							Item* item = Item::CreateItem(propStream);
+							Item* item = Item::CreateItem(propStream, true);
+
 							if(!item){
 								std::stringstream ss;
 								ss << "[x:" << px << ", y:" << py << ", z:" << pz << "] " << "Failed to create item.";
 								setLastErrorString(ss.str());
 								return false;
+							}
+
+							if (item->getID() == 2782 || item->getID() == 2739 || item->getID() == 3985) // Jungle Grass
+							{
+								item->disableDecaying = false;
 							}
 
 							if(isHouseTile && !item->isNotMoveable()){
@@ -339,7 +344,7 @@ bool IOMapOTBM::loadMap(Map* map, const std::string& identifier)
 							else{
 								if(tile){
 									tile->__internalAddThing(item);
-									// item->__startDecaying();
+									item->__startDecaying();
 								}
 								else if(item->isGroundTile()){
 									if(ground_item)
@@ -349,7 +354,7 @@ bool IOMapOTBM::loadMap(Map* map, const std::string& identifier)
 								else{ // !tile
 									tile = createTile(ground_item, item, px, py, pz);
 									tile->__internalAddThing(item);
-									// item->__startDecaying();
+									item->__startDecaying();
 								}
 							}
 
@@ -372,12 +377,18 @@ bool IOMapOTBM::loadMap(Map* map, const std::string& identifier)
 							PropStream propStream;
 							f.getProps(nodeItem, propStream);
 
-							Item* item = Item::CreateItem(propStream);
+							Item* item = Item::CreateItem(propStream, true);
+
 							if(!item){
 								std::stringstream ss;
 								ss << "[x:" << px << ", y:" << py << ", z:" << pz << "] " << "Failed to create item.";
 								setLastErrorString(ss.str());
 								return false;
+							}
+
+							if (item->getID() == 2782 || item->getID() == 2739 || item->getID() == 3985) // Jungle Grass
+							{
+								item->disableDecaying = false;
 							}
 
 							if(item->unserializeItemNode(f, nodeItem, propStream)){
@@ -388,7 +399,7 @@ bool IOMapOTBM::loadMap(Map* map, const std::string& identifier)
 								else{
 									if(tile){
 										tile->__internalAddThing(item);
-										// item->__startDecaying();
+										item->__startDecaying();
 									}
 									else if(item->isGroundTile()){
 										if(ground_item)
@@ -398,7 +409,7 @@ bool IOMapOTBM::loadMap(Map* map, const std::string& identifier)
 									else{ // !tile
 										tile = createTile(ground_item, item, px, py, pz);
 										tile->__internalAddThing(item);
-										// item->__startDecaying();
+										item->__startDecaying();
 									}
 								}
 							}
@@ -535,6 +546,5 @@ bool IOMapOTBM::loadMap(Map* map, const std::string& identifier)
 		nodeMapData = f.getNextNode(nodeMapData, type);
 	}
 
-	std::cout << "Notice: [OTBM Loader] Loading time : " << (OTSYS_TIME() - start)/(1000.) << " s" << std::endl;
 	return true;
 }

@@ -27,11 +27,14 @@
 #include "position.h"
 #include "monster.h"
 #include "templates.h"
+#include "game.h"
 #include <vector>
 #include <map>
 
 class Spawn;
 typedef std::list<Spawn*> SpawnList;
+
+extern Game g_game;
 
 class Spawns{
 private:
@@ -48,6 +51,9 @@ public:
 	~Spawns();
 	
 	bool loadFromXml(const std::string& datadir);
+	bool loadMonsterhomes(const std::string& datadir);
+	bool loadNpchomes(const std::string& datadir);
+
 	void startup();
 	void clear();
 	
@@ -78,7 +84,14 @@ public:
 	bool addMonster(const std::string& _name, const Position& _pos, Direction _dir, uint32_t _interval);
 	void removeMonster(Monster* monster);
 
-	uint32_t getInterval() const {return interval;}
+	uint32_t getInterval() const {
+		uint32_t _interval = interval;
+
+		if (_interval < 100)
+			_interval = 100;
+
+		return _interval * 1000;
+	}
 	void startup();
 
 	void startSpawnCheck();
@@ -87,6 +100,8 @@ public:
 	bool isInSpawnZone(const Position& pos);
 	void cleanup();
 
+	int16_t monsterAmount;
+	bool isMonsterHomeSpawn;
 private:
 	Position centerPos;
 	int32_t radius;

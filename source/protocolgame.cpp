@@ -1,7 +1,7 @@
 //////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
 //////////////////////////////////////////////////////////////////////
-// Implementation of tibia v8.0 protocol
+// Implementation of tibia v7.72 protocol
 //////////////////////////////////////////////////////////////////////
 // This program is free software; you can redistribute it and/or
 // modify it under the terms of the GNU General Public License
@@ -18,7 +18,7 @@
 // Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
+#include "logger.h"
 #include "protocolgame.h"
 #include "networkmessage.h"
 #include "outputmessage.h"
@@ -124,6 +124,7 @@ bool ProtocolGame::login(const std::string& name, bool isSetGM)
 {
 	//dispatcher thread
 	Player* _player = g_game.getPlayerByName(name);
+
 	if(!_player || g_config.getNumber(ConfigManager::ALLOW_CLONES)){
 		player = new Player(name, this);
 		player->useThing2();
@@ -137,8 +138,13 @@ bool ProtocolGame::login(const std::string& name, bool isSetGM)
 			return false;
 		}
 
-		if(g_bans.isPlayerBanished(name) && !player->hasFlag(PlayerFlag_CannotBeBanned)){
-			disconnectClient(0x14, "Your character is locked!");
+		if (g_bans.isPlayerNameReported(name)){
+			disconnectClient(0x14, "Your character is namelocked.");
+			return false;
+		}
+
+		if(g_bans.isPlayerBanished(name)){
+			disconnectClient(0x14, "Your character is banished!");
 			return false;
 		}
 
@@ -147,29 +153,30 @@ bool ProtocolGame::login(const std::string& name, bool isSetGM)
 			return false;
 		}
 
-		if(isSetGM && !player->hasFlag(PlayerFlag_CanAlwaysLogin) &&
-			!g_config.getNumber(ConfigManager::ALLOW_GAMEMASTER_MULTICLIENT))
+		Account account = IOAccount::instance()->loadAccount(player->getAccountId());
+		if(isSetGM &&
+			!g_config.getNumber(ConfigManager::ALLOW_GAMEMASTER_MULTICLIENT) && account.getAccountType() < ACCOUNTTYPE_GAMEMASTER)
 		{
-			disconnectClient(0x14, "You may only login with a Gamemaster account.");
+			disconnectClient(0x14, "You don't have a gamemaster account!");
 			return false;
 		}
-
+		
 		if(g_game.getGameState() == GAME_STATE_CLOSING && !player->hasFlag(PlayerFlag_CanAlwaysLogin)){
 			disconnectClient(0x14, "The game is just going down.\nPlease try again later.");
 			return false;
 		}
 
-		if(g_game.getGameState() == GAME_STATE_CLOSED && !player->hasFlag(PlayerFlag_CanAlwaysLogin)){
+		if(g_game.getGameState() == GAME_STATE_CLOSED && !player->hasFlag(PlayerFlag_CanAlwaysLogin) && account.getAccountType() < ACCOUNTTYPE_SENIOR_TUTOR){
 			disconnectClient(0x14, "Server is closed.");
 			return false;
 		}
 
-		if(g_config.getNumber(ConfigManager::CHECK_ACCOUNTS) && !player->hasFlag(PlayerFlag_CanAlwaysLogin)
-			&& g_game.getPlayerByAccount(player->getAccountId())){
-			disconnectClient(0x14, "You may only login with one character per account.");
+		if(g_config.getNumber(ConfigManager::CHECK_ACCOUNTS) && g_game.getPlayerByAccount(player->getAccountId()) && account.getAccountType() < ACCOUNTTYPE_GAMEMASTER)
+		{
+			disconnectClient(0x14, "You may only login with one character of your account at the same time.");
 			return false;
 		}
-
+		
 		if(!WaitingList::getInstance()->clientLogin(player)){
 			int32_t currentSlot = WaitingList::getInstance()->getClientSlot(player);
 			int32_t retryTime = WaitingList::getTime(currentSlot);
@@ -210,6 +217,8 @@ bool ProtocolGame::login(const std::string& name, bool isSetGM)
 		player->lastLoginMs = OTSYS_TIME();
 		IOPlayer::instance()->updateLoginInfo(player);
 		m_acceptPackets = true;
+		
+		LOG_MESSAGE("Login", "Player: " + player->getName() + " logged in.");
 
 		return true;
 	}
@@ -300,10 +309,7 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 		return false;
 	}
 
-	/*uint16_t clientos =*/ msg.GetU16();
-	uint16_t version  = msg.GetU16();
-
-	if(!RSA_decrypt(msg)){
+	if (!RSA_decrypt(msg)) {
 		getConnection()->closeConnection();
 		return false;
 	}
@@ -316,6 +322,9 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 	enableXTEAEncryption();
 	setXTEAKey(key);
 
+	/*uint16_t clientos =*/ msg.GetU16();
+	uint16_t version  = msg.GetU16();
+
 	bool isSetGM = (msg.GetByte() == 1);
 	uint32_t accnumber = msg.GetU32();
 	const std::string name = msg.GetString();
@@ -327,7 +336,7 @@ bool ProtocolGame::parseFirstPacket(NetworkMessage& msg)
 	}
 
 	if(g_game.getGameState() == GAME_STATE_STARTUP){
-		std::string clientMessage = g_config.getString(ConfigManager::WORLD_NAME) + " is starting up. Please wait.";
+		std::string clientMessage = "Gameworld is starting up.\nPlease wait.";
 		disconnectClient(0x14, clientMessage.c_str());
 		return false;
 	}
@@ -403,11 +412,11 @@ void ProtocolGame::parsePacket(NetworkMessage &msg)
 
 	switch(recvbyte){
 	case 0x14: // logout
-		g_dispatcher.addTask(createTask(boost::bind(&ProtocolGame::logout, this, false)));
+		parseLogout(msg);
 		break;
 
 	case 0x1E: // keep alive / ping response
-		g_dispatcher.addTask(createTask(boost::bind(&Game::playerReceivePing, &g_game, player->getID())));
+		parseReceivePing(msg);
 		break;
 
 	case 0x64: // move with steps
@@ -415,55 +424,55 @@ void ProtocolGame::parsePacket(NetworkMessage &msg)
 		break;
 
 	case 0x65: // move north
-		addGameTask(&Game::playerMove, player->getID(), NORTH);
+		parseMove(msg, NORTH);
 		break;
 
 	case 0x66: // move east
-		addGameTask(&Game::playerMove, player->getID(), EAST);
+		parseMove(msg, EAST);
 		break;
 
 	case 0x67: // move south
-		addGameTask(&Game::playerMove, player->getID(), SOUTH);
+		parseMove(msg, SOUTH);
 		break;
 
 	case 0x68: // move west
-		addGameTask(&Game::playerMove, player->getID(), WEST);
+		parseMove(msg, WEST);
 		break;
 
 	case 0x69: // stop-autowalk
-		addGameTask(&Game::playerStopAutoWalk, player->getID());
+		parseStopAutoWalk(msg);
 		break;
 
 	case 0x6A:
-		addGameTask(&Game::playerMove, player->getID(), NORTHEAST);
+		parseMove(msg, NORTHEAST);
 		break;
 
 	case 0x6B:
-		addGameTask(&Game::playerMove, player->getID(), SOUTHEAST);
+		parseMove(msg, SOUTHEAST);
 		break;
 
 	case 0x6C:
-		addGameTask(&Game::playerMove, player->getID(), SOUTHWEST);
+		parseMove(msg, SOUTHWEST);
 		break;
 
 	case 0x6D:
-		addGameTask(&Game::playerMove, player->getID(), NORTHWEST);
+		parseMove(msg, NORTHWEST);
 		break;
 
 	case 0x6F: // turn north
-		addGameTaskTimed(DISPATCHER_TASK_EXPIRATION, &Game::playerTurn, player->getID(), NORTH);
+		parseTurn(msg, NORTH);
 		break;
 
 	case 0x70: // turn east
-		addGameTaskTimed(DISPATCHER_TASK_EXPIRATION, &Game::playerTurn, player->getID(), EAST);
+		parseTurn(msg, EAST);
 		break;
 
 	case 0x71: // turn south
-		addGameTaskTimed(DISPATCHER_TASK_EXPIRATION, &Game::playerTurn, player->getID(), SOUTH);
+		parseTurn(msg, SOUTH);
 		break;
 
 	case 0x72: // turn west
-		addGameTaskTimed(DISPATCHER_TASK_EXPIRATION, &Game::playerTurn, player->getID(), WEST);
+		parseTurn(msg, WEST);
 		break;
 
 	case 0x78: // throw item
@@ -479,7 +488,7 @@ void ProtocolGame::parsePacket(NetworkMessage &msg)
 		break;
 
 	case 0x7F: // Accept trade
-		addGameTask(&Game::playerAcceptTrade, player->getID());
+		parseAcceptTrade(msg);
 		break;
 
 	case 0x80: // Close/cancel trade
@@ -527,7 +536,7 @@ void ProtocolGame::parsePacket(NetworkMessage &msg)
 		break;
 
 	case 0x97: // request Channels
-		addGameTask(&Game::playerRequestChannels, player->getID());
+		parseGetChannels(msg);
 		break;
 
 	case 0x98: // open Channel
@@ -551,7 +560,7 @@ void ProtocolGame::parsePacket(NetworkMessage &msg)
 		break;
 
 	case 0x9D: //player cancels report
-		addGameTask(&Game::playerCancelRuleViolation, player->getID());
+		parseCancelRuleViolation(msg);
 		break;
 
 	case 0xA0: // set attack and follow mode
@@ -583,11 +592,11 @@ void ProtocolGame::parsePacket(NetworkMessage &msg)
 		break;
 
 	case 0xA7:
-		addGameTask(&Game::playerLeaveParty, player->getID());
+		parseLeaveParty(msg);
 		break;
 
 	case 0xAA:
-		addGameTask(&Game::playerCreatePrivateChannel, player->getID());
+		parseCreatePrivateChannel(msg);
 		break;
 
 	case 0xAB:
@@ -599,7 +608,7 @@ void ProtocolGame::parsePacket(NetworkMessage &msg)
 		break;
 
 	case 0xBE: // cancel move
-		addGameTask(&Game::playerCancelAttackAndFollow, player->getID());
+		parseCancelMove(msg);
 		break;
 
 	case 0xC9: //client request to resend the tile
@@ -611,7 +620,7 @@ void ProtocolGame::parsePacket(NetworkMessage &msg)
 		break;
 
 	case 0xD2: // request outfit
-		addGameTask(&Game::playerRequestOutfit, player->getID());
+		parseRequestOutfit(msg);
 		break;
 
 	case 0xD3: // set outfit
@@ -640,7 +649,7 @@ void ProtocolGame::parsePacket(NetworkMessage &msg)
 
 	default:
 		std::cout << "Unknown packet header: " << std::hex << (int)recvbyte << std::dec << ", player " << player->getName() << std::endl;
-		disconnectClient(0x14, "Unknown packet sent.");
+		kickPlayer = true;
 		break;
 	}
 
@@ -674,10 +683,10 @@ void ProtocolGame::GetTileDescription(const Tile* tile, NetworkMessage_ptr msg)
 			}
 		}
 
-		if(creatures){
+		if (creatures){
 			CreatureVector::const_reverse_iterator cit;
-			for(cit = creatures->rbegin(); ((cit != creatures->rend()) && (count < 10)); ++cit){
-				if(player->canSeeCreature(*cit)){
+			for (cit = creatures->rbegin(); ((cit != creatures->rend()) && (count < 10)); ++cit){
+				if (player->canSeeCreature(*cit)){
 					bool known;
 					uint32_t removedKnown;
 					checkCreatureAsKnown((*cit)->getID(), known, removedKnown);
@@ -694,6 +703,63 @@ void ProtocolGame::GetTileDescription(const Tile* tile, NetworkMessage_ptr msg)
 			}
 		}
 	}
+}
+
+void ProtocolGame::parseCreatePrivateChannel(NetworkMessage& msg)
+{
+	addGameTask(&Game::playerCreatePrivateChannel, player->getID());
+}
+
+void ProtocolGame::parseLeaveParty(NetworkMessage& msg)
+{
+	addGameTask(&Game::playerLeaveParty, player->getID());
+}
+
+void ProtocolGame::parseCancelRuleViolation(NetworkMessage& msg)
+{
+	addGameTask(&Game::playerCancelRuleViolation, player->getID());
+}
+
+void ProtocolGame::parseGetChannels(NetworkMessage& msg)
+{
+	addGameTask(&Game::playerRequestChannels, player->getID());
+}
+
+void ProtocolGame::parseAcceptTrade(NetworkMessage& msg)
+{
+	addGameTask(&Game::playerAcceptTrade, player->getID());
+}
+
+void ProtocolGame::parseCancelMove(NetworkMessage& msg)
+{
+	addGameTask(&Game::playerCancelAttackAndFollow, player->getID());
+}
+
+void ProtocolGame::parseTurn(NetworkMessage& msg, Direction dir)
+{
+	addGameTaskTimed(DISPATCHER_TASK_EXPIRATION, &Game::playerTurn, player->getID(), dir);
+}
+
+void ProtocolGame::parseRequestOutfit(NetworkMessage& msg)
+{
+	addGameTask(&Game::playerRequestOutfit, player->getID());
+}
+
+void ProtocolGame::parseLogout(NetworkMessage& msg)
+{
+	g_dispatcher.addTask(createTask(boost::bind(&ProtocolGame::logout, this, false)));
+}
+
+void ProtocolGame::parseStopAutoWalk(NetworkMessage& msg)
+{
+	addGameTask(&Game::playerStopAutoWalk, player->getID());
+}
+
+
+void ProtocolGame::parseReceivePing(NetworkMessage& msg)
+{
+	g_dispatcher.addTask(
+		createTask(boost::bind(&Game::playerReceivePing, &g_game, player->getID())));
 }
 
 void ProtocolGame::GetMapDescription(int32_t x, int32_t y, int32_t z,
@@ -757,6 +823,11 @@ void ProtocolGame::GetFloorDescription(NetworkMessage_ptr msg, int32_t x, int32_
 			}
 		}
 	}
+}
+
+void ProtocolGame::parseMove(NetworkMessage& msg, Direction dir)
+{
+	addGameTask(&Game::playerMove, player->getID(), dir);
 }
 
 void ProtocolGame::checkCreatureAsKnown(uint32_t id, bool &known, uint32_t &removedKnown)
@@ -925,8 +996,8 @@ void ProtocolGame::parseAutoWalk(NetworkMessage& msg)
 {
 	std::list<Direction> path;
 
-	size_t numdirs = msg.GetByte();
-	for (size_t i = 0; i < numdirs; ++i) {
+	uint8_t numdirs = msg.GetByte();
+	for (uint8_t i = 0; i < numdirs; ++i) {
 		uint8_t rawdir = msg.GetByte();
 		switch(rawdir) {
 			case 1: path.push_back(EAST); break;
@@ -1862,9 +1933,7 @@ void ProtocolGame::sendAddCreature(const Creature* creature, const Position& pos
 				AddTileCreature(msg, pos, stackpos, creature);
 
 				if (isLoggingIn){
-					if(creature->getPlayer()){
-						AddMagicEffect(msg, creature->getPosition(), NM_ME_TELEPORT);
-					}
+					AddMagicEffect(msg, creature->getPosition(), NM_ME_TELEPORT);
 				}
 			}
 		}
@@ -2069,7 +2138,7 @@ void ProtocolGame::sendTextWindow(uint32_t windowTextId, uint32_t itemId, const 
 
 		msg->AddU16(text.size());
 		msg->AddString(text);
-		
+
 		msg->AddString("");
 	}
 }
@@ -2222,8 +2291,6 @@ void ProtocolGame::AddCreature(NetworkMessage_ptr msg,const Creature* creature, 
 			msg->AddU16(0);
 			msg->AddU16(0);
 		}
-		/*static Outfit_t outfit;
-		AddCreatureOutfit(msg, creature, outfit);*/
 	}
 	else{
 		AddCreatureOutfit(msg, creature, creature->getCurrentOutfit());
@@ -2297,10 +2364,7 @@ void ProtocolGame::AddCreatureSpeak(NetworkMessage_ptr msg, const Creature* crea
 
 	if (type != SPEAK_CHANNEL_R2){
 		if (type != SPEAK_RVR_ANSWER){
-			if(creature)
-			  msg->AddString(creature->getName());
-			else
-			  msg->AddString(""); // anonymous = no name
+			msg->AddString(creature->getName());
 		}
 		else {
 			msg->AddString("Gamemaster");

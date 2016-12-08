@@ -92,6 +92,11 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 	uint32_t accnumber = msg.GetU32();
 	std::string password = msg.GetString();
 
+	if (g_game.getGameState() == GAME_STATE_STARTUP){
+		disconnectClient(0x0A, "Gameworld is starting up.\nPlease wait.");
+		return false;
+	}
+
 	if(accnumber == 0){
 		disconnectClient(0x0A, "You must enter your account number.");
 		return false;
@@ -102,18 +107,18 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 		return false;
 	}
 
-	if(g_game.getGameState() == GAME_STATE_STARTUP){
-		disconnectClient(0x0A, "Gameworld is starting up. Please wait.");
-		return false;
-	}
-
 	if(g_bans.isIpDisabled(clientip)){
-		disconnectClient(0x0A, "Too many connections attempts from this IP. Try again later.");
+		disconnectClient(0x0A, "IP address blocked for 30 minutes. Please wait.");
 		return false;
 	}
 
 	if(g_bans.isIpBanished(clientip)){
 		disconnectClient(0x0A, "Your IP is banished!");
+		return false;
+	}
+
+	if (g_bans.isAccountLocked(accnumber)) {
+		disconnectClient(0x0A, "Account disabled for five minutes. Please wait.");
 		return false;
 	}
 
@@ -126,16 +131,22 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 	}
 
 	Account account = IOAccount::instance()->loadAccount(accnumber);
-	if (!(accnumber != 0 && account.number == accnumber &&
-			passwordTest(password, account.password))){
-		std::cout << "Failed attempt with: " << accnumber << "/" << account.number << "\n";
+	if (!(accnumber != 0 && account.getAccountNumber() == accnumber &&
+			passwordTest(password, account.getAccountPassword()))){
 		g_bans.addLoginAttempt(clientip, false);
-		disconnectClient(0x0A, "Account number or password is not correct.");
+		g_bans.addAccountLoginAttempt(accnumber, false);
+		disconnectClient(0x0A, "Accountnumber or password is not correct.");
+
+		return false;
+	}
+
+	if ((uint8_t)account.getCharacterList()->size() == 0)
+	{
+		disconnectClient(0x0A, "Your account has no characters yet, go to the website and create one now!");
 		return false;
 	}
 
 	g_bans.addLoginAttempt(clientip, true);
-
 
 	OutputMessage_ptr output = OutputMessagePool::getInstance()->getOutputMessage(this, false);
 	if(output){
@@ -148,16 +159,19 @@ bool ProtocolLogin::parseFirstPacket(NetworkMessage& msg)
 		output->AddString(motd.str());
 		//Add char list
 		output->AddByte(0x64);
-		output->AddByte((uint8_t)account.charList.size());
+		output->AddByte((uint8_t)account.getCharacterList()->size());
 		std::list<std::string>::iterator it;
-		for(it = account.charList.begin(); it != account.charList.end(); ++it){
+		for (it = account.getCharacterList()->begin(); it != account.getCharacterList()->end(); ++it){
 			output->AddString((*it));
 			output->AddString(g_config.getString(ConfigManager::WORLD_NAME));
 			output->AddU32(serverip);
 			output->AddU16(g_config.getNumber(ConfigManager::GAME_PORT));
 		}
 		//Add premium days
-		output->AddU16(Account::getPremiumDaysLeft(account.premEnd));
+		if (account.getAccountType() >= ACCOUNTTYPE_GAMEMASTER)
+			output->AddU16(0xFFFF);
+		else
+			output->AddU16(Account::getPremiumDaysLeft(account.getPremiumEnd()));
 
 		OutputMessagePool::getInstance()->send(output);
 	}

@@ -129,23 +129,13 @@ public:
 	void removeList();
 	void addList();
 	void kickPlayer();
+	void sendToNewbieIsland();
 
-	static uint64_t getExpForLevel(int32_t level)
-    {
-
-        level--;
-        //"original"
-            return ((50ULL * level * level * level) - (150ULL * level * level) + (400ULL * level))/3ULL;
-
-
-        //"tibianic"
-        //   return (level * 35ULL) * (level * level * level) / 500ULL + 10ULL * level;
-
-
-        //"mastercores"
-        //    return ((level * 50ULL) * (level * level * level) / 500ULL)+10ULL;
-
-      }
+	static uint64_t getExpForLevel(uint32_t level)
+	{
+		level--;
+		return ((50ULL * level * level * level) - (150ULL * level * level) + (400ULL * level))/3ULL;
+	}
 
 	//[ guild settings
 	void setGuild(Guild* _guild) { guild = _guild; }
@@ -156,22 +146,18 @@ public:
 	uint32_t guildLevel;
 	//]
 
-	//[ update inventory public
-	void updateInventoryWeight();
-	//]
-
 	//[ gm invisible
 	void toogleGmInvisible();
 	bool isGmInvisible() const {return gmInvisible;}
 	bool canSeeGmInvisible(const Player* player) const { return (player->getAccessLevel() <= getAccessLevel()); }
-	bool hasSomeInvisibilityFlag() const { return hasFlag(PlayerFlag_CannotBeSeen) || isGmInvisible(); }
+	bool hasSomeInvisibilityFlag() const { return isGmInvisible(); }
 	//]
-
+	
 	void setFlags(uint64_t flags){ groupFlags = flags;}
 	bool hasFlag(PlayerFlags value) const { return (0 != (groupFlags & ((uint64_t)1 << value)));}
 
 	uint16_t getPremiumDays() const {return premiumDays;}
-	bool isPremium() const {return (premiumDays > 0 || hasFlag(PlayerFlag_IsAlwaysPremium));}
+	bool isPremium() const {return (premiumDays > 0 || hasFlag(PlayerFlag_IsAlwaysPremium) || accountType >= ACCOUNTTYPE_GAMEMASTER);}
 
 	bool isOffline() const {return (getID() == 0);}
 	bool isOnline() const {return !isOffline();}
@@ -296,7 +282,6 @@ public:
 
 	virtual bool canSee(const Position& pos) const;
 	virtual bool canSeeCreature(const Creature* creature) const;
-	virtual bool canWalkthrough(const Creature* creature) const;
 
 	virtual RaceType_t getRace() const {return RACE_BLOOD;}
 
@@ -398,7 +383,6 @@ public:
 	virtual void onTargetCreatureGainHealth(Creature* target, int32_t points);
 	virtual void onKilledCreature(Creature* target, bool lastHit);
 	virtual void onGainExperience(uint64_t gainExp, bool fromMonster);
-	virtual void onGainSharedExperience(uint64_t gainExp, bool fromMonster);
 	virtual void onAttackedCreatureBlockHit(Creature* target, BlockType_t blockType);
 	virtual void onBlockHit(BlockType_t blockType);
 	virtual void onChangeZone(ZoneType_t zone);
@@ -434,10 +418,9 @@ public:
 	bool canLogout();
 	bool checkPzBlock(Player* targetPlayer);
 	bool canAddContainer(const Container* container) const;
-
+	
 	//creature events
 	void onAdvanceEvent(levelTypes_t type, uint32_t oldLevel, uint32_t newLevel);
-	bool onLookEvent(Thing* target, uint32_t itemId);
 
 	//tile
 	//send methods
@@ -472,7 +455,7 @@ public:
 		{
 			if(client){
 				if(creature->getPlayer()){
-					if(creature == this || !creature->getPlayer()->hasFlag(PlayerFlag_CannotBeSeen)){
+					if(creature == this){
 						if(visible){
 							client->sendCreatureOutfit(creature, creature->getCurrentOutfit());
 						}
@@ -617,7 +600,7 @@ public:
 		{if(client) client->sendLockRuleViolation();}
 	void sendRuleViolationCancel(const std::string& name)
 		{if(client) client->sendRuleViolationCancel(name);}
-
+	
 	void receivePing() {last_pong = OTSYS_TIME();}
 
 	virtual void onThink(uint32_t interval);
@@ -646,7 +629,7 @@ public:
 	void learnInstantSpell(const std::string& name);
 	bool hasLearnedInstantSpell(const std::string& name) const;
 	void stopWalk();
-
+	
 	VIPListSet VIPList;
 	uint32_t maxVipLimit;
 
@@ -657,6 +640,8 @@ public:
 	//depots
 	DepotMap depots;
 	uint32_t maxDepotLimit;
+
+	void updateInventoryWeight();
 
 protected:
 	void checkTradeState(const Item* item);
@@ -669,7 +654,6 @@ protected:
 	void setNextWalkActionTask(SchedulerTask* task);
 	void setNextActionTask(SchedulerTask* task);
 
-	void sendToRook();
 	void onDie();
 	void die();
 	virtual Item* dropCorpse();
@@ -760,6 +744,7 @@ protected:
 
 	//account variables
 	uint32_t accountId;
+	AccountType_t accountType;
 	std::string password;
 	time_t lastLoginSaved;
 	time_t lastLogout;

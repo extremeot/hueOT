@@ -21,17 +21,14 @@
 #ifndef __OTSERV_DEFINITIONS_H__
 #define __OTSERV_DEFINITIONS_H__
 
-#define OTSERV_VERSION "0.0.3"
-#define OTSERV_NAME "OTHire"
-#define OTSERV_CLIENT_VERSION "7.72"
-
+#define OTSERV_VERSION "1.0.0"
+#define OTSERV_NAME "TibiaTales"
+#define OTSERV_CLIENT_VERSION "7.70"
+#define __SKULLSYSTEM__
+#define __OLD_GUILD_SYSTEM__
 #define CURRENT_SCHEMA_VERSION 24
 
-#ifdef __USE_SQLITE__
-	#define SINGLE_SQL_DRIVER
-#endif
-
-//This is an code fully tested and shouldn't cause weird errors but marked it under flag for easier removing.
+//This is a code fully tested and shouldn't cause weird errors but marked it under flag for easier removing.
 #ifndef __GLOBALEVENTS__
 	#define __GLOBALEVENTS__
 #endif
@@ -41,29 +38,10 @@
 		#define MULTI_SQL_DRIVERS
 	#else
 		#define SINGLE_SQL_DRIVER
+		#ifdef _MSC_VER
+			#define __MYSQL_ALT_INCLUDE__
+		#endif
 	#endif
-#endif
-
-#ifdef __USE_ODBC__
-	#ifdef SINGLE_SQL_DRIVER
-		#define MULTI_SQL_DRIVERS
-	#else
-		#define SINGLE_SQL_DRIVER
-	#endif
-#endif
-
-#ifdef __USE_PGSQL__
-	#ifdef SINGLE_SQL_DRIVER
-		#define MULTI_SQL_DRIVERS
-	#else
-		#define SINGLE_SQL_DRIVER
-	#endif
-#endif
-
-//Default sql driver
-#if !defined(SINGLE_SQL_DRIVER) && !defined(MULTI_SQL_DRIVERS)
-	#define __USE_SQLITE__
-	#define SINGLE_SQL_DRIVER
 #endif
 
 enum passwordType_t{
@@ -113,7 +91,7 @@ enum passwordType_t{
 //Windows Seven 0x0601
 #define _WIN32_WINNT 0x0501
 
- #define __MIN_PVP_LEVEL_APPLIES_TO_SUMMONS__
+#define __MIN_PVP_LEVEL_APPLIES_TO_SUMMONS__
 
 // OpenTibia configuration
 #if !defined(__NO_SKULLSYSTEM__) && !defined(__SKULLSYSTEM__)
@@ -131,7 +109,7 @@ enum passwordType_t{
 		#define _MBCS
 	#endif
 	#ifdef _UNICODE
-		#undef _UNICODE
+		#undef _UNICODE 
 	#endif
 	#ifdef UNICODE
 		#undef UNICODE

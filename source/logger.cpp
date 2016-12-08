@@ -25,24 +25,49 @@
 
 Logger::Logger()
 {
-	m_file.open("otlog.txt", std::ios::app);
-	if(m_file.good()){
+	m_file.open("logs/server.txt", std::ios::app);
+	if(m_file.good())
 		m_registering = true;
-	}
+
+	m_playermessages.open("logs/players.txt", std::ios::app);
+	if (m_playermessages.good())
+		m_registering = true;
 }
 
 Logger::~Logger()
 {
 	if(m_registering){
 		m_file.close();
+		m_playermessages.close();
 	}
 }
 
-void Logger::logMessage(const char* channel, eLogType type, int level, std::string message, const char* func)
+void Logger::logPlayerMessage(const char* title, std::string message, const char* func)
 {
-	//TODO: decide if should be saved or not depending on channel type and level
-	// if should be save decide where and how
+	//check if the file is open, if not, avoid writting to file
+	if (!m_registering){
+		return;
+	}
 
+	//write timestamp of the event
+	char buffer[32];
+	time_t now = std::time(NULL);
+	formatDate(now, buffer);
+	m_playermessages << buffer;
+
+	//write channel generating the message
+	if (title){
+		m_playermessages << " [" << title << "] ";
+	}
+
+	//write the message
+	m_playermessages << " " << message << std::endl;
+
+	m_playermessages.flush();
+}
+
+void Logger::logMessage(const char* channel, std::string message, const char* func)
+{
 	//check if the file is open, if not, avoid writting to file
 	if(!m_registering){
 		return;
@@ -52,30 +77,12 @@ void Logger::logMessage(const char* channel, eLogType type, int level, std::stri
 	char buffer[32];
 	time_t now = std::time(NULL);
 	formatDate(now, buffer);
-	m_file << buffer << std::endl;
+	m_file << buffer;
 
 	//write channel generating the message
 	if(channel){
 		m_file << " [" << channel << "] ";
 	}
-
-	//write message type
-	std::string type_str;
-	switch(type){
-	case LOGTYPE_EVENT:
-		type_str = "event";
-		break;
-	case LOGTYPE_WARNING:
-		type_str = "warning";
-		break;
-	case LOGTYPE_ERROR:
-		type_str = "ERROR";
-		break;
-	default:
-		type_str = "???";
-		break;
-	}
-	m_file << " " << type_str << ":";
 
 	//write the message
 	m_file << " " << message << std::endl;

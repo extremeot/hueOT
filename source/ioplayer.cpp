@@ -293,9 +293,18 @@ bool IOPlayer::loadPlayer(Player* player, const std::string& name, bool preload 
 		db->freeResult(result);
 	}
 
+	query.str("");
+
+	query << "SELECT `type` FROM `accounts` WHERE `id` = " << player->getAccountId();
+
+	if (!(result = db->storeQuery(query.str()))){
+		return false;
+	}
+
 	player->updateBaseSpeed();
 	player->updateInventoryWeight();
 	player->updateItemsLight(true);
+	player->accountType = (AccountType_t)result->getDataInt("type");
 
 	return true;
 }

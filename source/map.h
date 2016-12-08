@@ -252,7 +252,6 @@ public:
 	bool getPathMatching(const Creature* creature, std::list<Direction>& dirList,
 		const FrozenPathingConditionCall& pathCondition, const FindPathParams& fpp);
 
-
 	// Waypoints on the map
 	Waypoints waypoints;
 
@@ -284,13 +283,11 @@ protected:
 	// Root node of the quad tree
 	QTreeNode root;
 
-	struct RefreshBlock_t{
-		TileItemVector list;
-		uint64_t lastRefresh;
-	};
+	typedef std::list<PositionEx> SaveableTileMap;
 
-	typedef std::map<Tile*, RefreshBlock_t> TileMap;
-	TileMap refreshTileMap;
+	SaveableTileMap saveableTileMap;
+
+	void cleanSaveableTiles();
 
 	friend class Game;
 

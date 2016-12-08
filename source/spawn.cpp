@@ -32,7 +32,7 @@ extern ConfigManager g_config;
 extern Monsters g_monsters;
 extern Game g_game;
 
-#define MINSPAWN_INTERVAL 10000
+#define MINSPAWN_INTERVAL 60
 #define DEFAULTSPAWN_INTERVAL 60000
 
 Spawns::Spawns()
@@ -152,7 +152,7 @@ bool Spawns::loadFromXml(const std::string& _filename)
 						}
 
 						if(readXMLInteger(tmpNode, "spawntime", intValue) || readXMLInteger(tmpNode, "interval", intValue)){
-							interval = intValue * 1000;
+							interval = intValue;
 						}
 						else{
 							tmpNode = tmpNode->next;
@@ -211,9 +211,11 @@ bool Spawns::loadFromXml(const std::string& _filename)
 							continue;
 						}
 
-						npc->setInitialLookDirection(direction);
+						npc->setDirection(direction);
 						npc->setMasterPos(placePos, radius);
 						npcList.push_back(npc);
+
+						//std::cout << "Lade NPC-Daten aus Datei " << name << "..." << std::endl;
 					}
 
 					tmpNode = tmpNode->next;
@@ -225,8 +227,208 @@ bool Spawns::loadFromXml(const std::string& _filename)
 
 		xmlFreeDoc(doc);
 		loaded = true;
+
+		if (!loadMonsterhomes("data/world/monsterhomes.xml"))
+		{
+			std::cout << "[Error] Failed to load monster homes." << std::endl;
+		}
+		if (!loadNpchomes("data/world/npcs.xml"))
+		{
+			std::cout << "[Error] Failed to load npc homes." << std::endl;
+		}
+
 		return true;
 	}
+
+	return false;
+}
+
+
+bool Spawns::loadNpchomes(const std::string& _filename)
+{
+	// Load NPCs
+	xmlDocPtr doc = xmlParseFile(_filename.c_str());
+
+	xmlNodePtr root, npcNode;
+	root = xmlDocGetRootElement(doc);
+
+	if (xmlStrcmp(root->name, (const xmlChar*)"npcs") != 0){
+		xmlFreeDoc(doc);
+		return true;
+	}
+
+	int intValue = 0;
+	std::string strValue = "";
+
+	npcNode = root->children;
+
+	std::string name;
+
+	while (npcNode)
+	{
+		if (xmlStrcmp(npcNode->name, (const xmlChar*)"npc") == 0)
+		{
+			if (readXMLString(npcNode, "name", strValue))
+			{
+				name = strValue;
+				if (readXMLString(npcNode, "home", strValue))
+				{
+					Position NPCHome;
+					std::vector<std::string> posList = explodeString(strValue, ",");
+					NPCHome.x = atoi(posList[0].c_str());
+					NPCHome.y = atoi(posList[1].c_str());
+					NPCHome.z = atoi(posList[2].c_str());
+
+					Npc* npc = Npc::createNpc(name);
+					if (!npc){
+						npcNode = npcNode->next;
+						continue;
+					}
+
+					npc->setDirection(SOUTH);
+					npc->setMasterPos(NPCHome);
+
+					npcList.push_back(npc);
+					//std::cout << "Loading npc " << name << "..." << std::endl;
+					npcNode = npcNode->next;
+				}
+				else {
+					std::cout << "NPC Load: Invalid NPC home." << std::endl;
+					xmlFreeDoc(doc);
+					return false;
+				}
+			}
+			else {
+				std::cout << "NPC Load: Invalid NPC architecture." << std::endl;
+				xmlFreeDoc(doc);
+				return false;
+			}
+		}
+
+		npcNode = npcNode->next;
+	}
+
+	return true;
+}
+
+
+bool Spawns::loadMonsterhomes(const std::string& datadir)
+{
+	std::cout << "Initializing monsterhomes..." << std::endl;
+	// Load monster spawns
+	std::string monsterName;
+	std::string as;
+
+	filename = datadir;
+	xmlDocPtr doc = xmlParseFile(filename.c_str());
+
+	if (doc){
+		xmlNodePtr root, homeNode;
+		root = xmlDocGetRootElement(doc);
+
+		if (xmlStrcmp(root->name, (const xmlChar*)"homes") != 0){
+			xmlFreeDoc(doc);
+			std::cout << "Monster homes: Invalid file." << std::endl;
+			return false;
+		}
+
+		int intValue;
+		std::string strValue;
+
+		homeNode = root->children;
+		while (homeNode)
+		{
+			if (xmlStrcmp(homeNode->name, (const xmlChar*)"home") == 0)
+			{
+				Position coordinate;
+
+				int16_t regen = 0;
+				int16_t radius = 0;
+				int16_t amount = 0;
+
+				if (readXMLString(homeNode, "start", strValue))
+				{
+					std::vector<std::string> posList = explodeString(strValue, ",");
+					coordinate.x = atoi(posList[0].c_str());
+					coordinate.y = atoi(posList[1].c_str());
+					coordinate.z = atoi(posList[2].c_str());
+				}
+				else {
+					std::cout << "Monster Home: Missing start coordinates." << std::endl;
+					xmlFreeDoc(doc);
+					return false;
+				}
+
+				if (readXMLString(homeNode, "race", strValue))
+				{
+					monsterName = strValue;
+				}
+				else {
+					std::cout << "Monster Home: Missing monster name." << std::endl;
+					xmlFreeDoc(doc);
+					return false;
+				}
+
+				if (readXMLInteger(homeNode, "radius", intValue))
+				{
+					radius = intValue;
+				}
+				else {
+					std::cout << "Monster Home: Missing home radius." << std::endl;
+					xmlFreeDoc(doc);
+					return false;
+				}
+
+				if (readXMLInteger(homeNode, "amount", intValue))
+				{
+					amount = intValue;
+				}
+				else {
+					std::cout << "Monster Home: Missing home monsters amount." << std::endl;
+					xmlFreeDoc(doc);
+					return false;
+				}
+
+				if (readXMLInteger(homeNode, "regen", intValue))
+				{
+					regen = intValue - g_config.getNumber(ConfigManager::DECREASE_SPAWN_REGEN);
+					if (regen < 70 && regen != 0)
+					{
+						regen = 70;
+					}
+				}
+				else {
+					std::cout << "Monster Home: Missing home regen." << std::endl;
+					xmlFreeDoc(doc);
+					return false;
+				}
+
+				Spawn* spawn = new Spawn(coordinate, radius);
+				spawn->monsterAmount = amount;
+				if (spawn->monsterAmount == 0)
+				{
+					spawn->monsterAmount = 1;
+					amount = 1;
+				}
+
+				spawn->isMonsterHomeSpawn = true;
+				spawnList.push_back(spawn);
+
+				for (int i = 0; i != amount; i++)
+				{
+					spawn->addMonster(monsterName, coordinate, SOUTH, regen);
+				}
+			}
+			homeNode = homeNode->next;
+		}
+
+		xmlFreeDoc(doc);
+		loaded = true;
+
+		return true;
+	}
+
+	std::cout << "Failed to load monster homes!" << std::endl;
 
 	return false;
 }
@@ -328,33 +530,127 @@ bool Spawn::isInSpawnZone(const Position& pos)
 
 bool Spawn::spawnMonster(uint32_t spawnId, MonsterType* mType, const Position& pos, Direction dir, bool startup /*= false*/)
 {
-	Monster* monster = Monster::createMonster(mType);
-	if(!monster){
-		return false;
-	}
-
-	if(startup){
-		//No need to send out events to the surrounding since there is no one out there to listen!
-		if(!g_game.internalPlaceCreature(monster, pos, false, true)){
-			delete monster;
+	if (!isMonsterHomeSpawn)
+	{
+		Monster* monster = Monster::createMonster(mType);
+		if (!monster){
 			return false;
 		}
+
+		if (startup){
+			//No need to send out events to the surrounding since there is no one out there to listen!
+			if (!g_game.internalPlaceCreature(monster, pos, false, true)){
+				delete monster;
+				return false;
+			}
+		}
+		else{
+			if (!g_game.placeCreature(monster, pos, false, true)){
+				delete monster;
+				return false;
+			}
+		}
+
+		monster->setDirection(dir);
+		monster->setSpawn(this);
+		monster->setMasterPos(pos, radius);
+		monster->useThing2();
+
+		spawnedMap.insert(spawned_pair(spawnId, monster));
+		spawnMap[spawnId].lastSpawn = OTSYS_TIME();
+		return true;
 	}
-	else{
-		if(!g_game.placeCreature(monster, pos, false, true)){
-			delete monster;
+	else {
+		Monster* monster = Monster::createMonster(mType);
+		if (!monster){
 			return false;
 		}
+
+		bool successSpawn = false;
+		Position toPlace;
+
+		if (startup){
+			toPlace = centerPos;
+
+			if (spawnMap.size() > 1)
+			{
+				for (int i = 0; i < 10; i++)
+				{
+					toPlace = centerPos;
+
+					toPlace.x = random_range(centerPos.x - monsterAmount + 1, centerPos.x + monsterAmount - 1);
+					toPlace.y = random_range(centerPos.y - monsterAmount + 1, centerPos.y + monsterAmount - 1);
+
+
+					// Theres no need to send out event informations as we're starting the world
+					if (!g_game.internalPlaceCreature(monster, toPlace)){
+						successSpawn = false;
+						continue;
+					}
+					else {
+						successSpawn = true;
+						break;
+					}
+				}
+			}
+			else {
+				if (!g_game.internalPlaceCreature(monster, centerPos, false, true)){
+					successSpawn = false;
+				}
+				else {
+					successSpawn = true;
+				}
+			}
+		}
+		else{
+			toPlace = centerPos;
+
+			if (spawnMap.size() > 1)
+			{
+				for (int i = 0; i < 10; i++)
+				{
+					toPlace = centerPos;
+
+					toPlace.x = uniform_random(centerPos.x - monsterAmount, centerPos.x + monsterAmount);
+					toPlace.y = uniform_random(centerPos.y - monsterAmount, centerPos.y + monsterAmount);
+
+					if (!g_game.placeCreature(monster, toPlace)){
+						successSpawn = false;
+						continue;
+					}
+					else {
+						successSpawn = true;
+						break;
+					}
+				}
+			}
+			else {
+				if (!g_game.placeCreature(monster, centerPos, false, true)){
+					successSpawn = false;
+				}
+				else {
+					successSpawn = true;
+				}
+			}
+		}
+
+		if (successSpawn)
+		{
+			monster->setDirection(SOUTH);
+			monster->setSpawn(this);
+			monster->setMasterPos(toPlace, radius);
+			monster->useThing2();
+
+			spawnedMap.insert(spawned_pair(spawnId, monster));
+			spawnMap[spawnId].lastSpawn = OTSYS_TIME();
+
+			return true;
+		}
+
+		delete monster;
 	}
 
-	monster->setDirection(dir);
-	monster->setSpawn(this);
-	monster->setMasterPos(pos, radius);
-	monster->useThing2();
-
-	spawnedMap.insert(spawned_pair(spawnId, monster));
-	spawnMap[spawnId].lastSpawn = OTSYS_TIME();
-	return true;
+	return false;
 }
 
 void Spawn::startup()
@@ -428,13 +724,6 @@ void Spawn::cleanup()
 			spawnedMap.erase(it++);
 		}
 		else{
-			/*
-			 * This completely messes up luring, and also moves creatures into the view of online players without checks.
-			if(spawnId != 0 && !isInSpawnZone(monster->getPosition()) && monster->getIdleStatus()) {
-				g_game.internalTeleport(monster, monster->getMasterPos(), FLAG_NOLIMIT);
-			}
-			*/
-
 			++it;
 		}
 	}
@@ -451,7 +740,7 @@ bool Spawn::addMonster(const std::string& _name, const Position& _pos, Direction
 	static uint8_t qtdWarnings = 0; //how many msgs of monsters at invalid places until now
 	if(qtdWarnings < 10){ //we stop spamming the screen with errors after the 10th message
 		Tile* tile = g_game.getTile(_pos);
-		if(!tile || tile->isMoveableBlocking()){
+		if(!tile){
 			std::cout << "Warning: [Spawn::addMonster] Position " << _pos << " is not valid. Could not place " << _name << "." << std::endl;
 			qtdWarnings++;
 			if (qtdWarnings == 10){
@@ -487,7 +776,7 @@ void Spawn::removeMonster(Monster* monster)
 		}
 	}
 
-	/* The check might have been removed from scheduler */
+	// The check might have been removed from the scheduler
 	startSpawnCheck();
 }
 

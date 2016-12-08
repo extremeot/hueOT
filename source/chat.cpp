@@ -178,25 +178,37 @@ Chat::Chat()
 
 	// These should be defined somewhere else (except the hard-coded one's)
 
-	newChannel = new ChatChannel(CHANNEL_RULE_REP, "Rule Violations");
-	if(newChannel)
-		m_normalChannels[CHANNEL_RULE_REP] = newChannel;
-
-	newChannel = new ChatChannel(CHANNEL_GAME_CHAT, "Game-Chat");
-	if(newChannel)
-		m_normalChannels[CHANNEL_GAME_CHAT] = newChannel;
-
-	newChannel = new ChatChannel(CHANNEL_TRADE, "Trade");
-	if(newChannel)
-		m_normalChannels[CHANNEL_TRADE] = newChannel;
-
-	newChannel = new ChatChannel(CHANNEL_RL_CHAT, "RL-Chat");
-	if(newChannel)
-		m_normalChannels[CHANNEL_RL_CHAT] = newChannel;
-
 	newChannel = new ChatChannel(CHANNEL_HELP, "Help");
 	if(newChannel)
 		m_normalChannels[CHANNEL_HELP] = newChannel;
+
+	newChannel = new ChatChannel(CHANNEL_RL_CHAT, "RL-Chat");
+	if (newChannel)
+		m_normalChannels[CHANNEL_RL_CHAT] = newChannel;
+
+	newChannel = new ChatChannel(CHANNEL_TRADE, "Trade");
+	if (newChannel)
+		m_normalChannels[CHANNEL_TRADE] = newChannel;
+
+	newChannel = new ChatChannel(CHANNEL_GAME_CHAT, "Game-Chat");
+	if (newChannel)
+		m_normalChannels[CHANNEL_GAME_CHAT] = newChannel;
+
+	newChannel = new ChatChannel(CHANNEL_RULE_REP, "Rule Violations");
+	if (newChannel)
+		m_normalChannels[CHANNEL_RULE_REP] = newChannel;
+
+	newChannel = new ChatChannel(CHANNEL_TUTOR, "Tutor");
+	if (newChannel)
+		m_normalChannels[CHANNEL_TUTOR] = newChannel;
+
+	newChannel = new ChatChannel(CHANNEL_GAMEMASTER, "Gamemaster");
+	if (newChannel)
+		m_normalChannels[CHANNEL_GAMEMASTER] = newChannel;
+
+	newChannel = new ChatChannel(CHANNEL_STAFF, "Staff");
+	if (newChannel)
+		m_normalChannels[CHANNEL_STAFF] = newChannel;
 
 	newChannel = new PrivateChatChannel(CHANNEL_PRIVATE, "Private Chat Channel");
 	if(newChannel)
@@ -271,14 +283,6 @@ ChatChannel* Chat::createChannel(Player* player, uint16_t channelId)
 		m_guildChannels[player->getGuildId()] = newChannel;
 		return newChannel;
 	}
-	else if(channelId == CHANNEL_PARTY){
-		if(player->getParty() == NULL)
-			return NULL;
-
-		PrivateChatChannel *newChannel = new PrivateChatChannel(channelId, "Party Channel");
-		m_partyChannels[player->getParty()] = newChannel;
-		return newChannel;
-	}
 	else if(channelId == CHANNEL_PRIVATE){
 		// Private chat channel
 
@@ -315,16 +319,6 @@ bool Chat::deleteChannel(Player* player, uint16_t channelId)
 		m_guildChannels.erase(it);
 		return true;
 	}
-	else if(channelId == CHANNEL_PARTY){
-		PartyChannelMap::iterator it = m_partyChannels.find(player->getParty());
-		if(it == m_partyChannels.end())
-			return false;
-
-		it->second->closeChannel();
-		delete it->second;
-		m_partyChannels.erase(it);
-		return true;
-	}
 	else{
 		PrivateChannelMap::iterator it = m_privateChannels.find(channelId);
 		if(it == m_privateChannels.end())
@@ -346,9 +340,10 @@ bool Chat::deleteChannel(Party* party)
 	if(it == m_partyChannels.end())
 		return false;
 
-	it->second->closeChannel();
-	delete it->second;
+	PrivateChatChannel* cc = it->second;
+	cc->closeChannel();
 	m_partyChannels.erase(it);
+	delete cc;
 	return true;
 }
 
@@ -471,19 +466,19 @@ ChannelList Chat::getChannelList(Player* player)
 			list.push_back(channel);
 	}
 
-	if(player->getParty()){
-		ChatChannel *channel = getChannel(player, CHANNEL_PARTY);
-
-	if(channel)
-		list.push_back(channel);
-	else if((channel = createChannel(player, CHANNEL_PARTY)))
-		list.push_back(channel);
-	}
-
 	for(itn = m_normalChannels.begin(); itn != m_normalChannels.end(); ++itn){
 		if(itn->first == CHANNEL_RULE_REP && !player->hasFlag(PlayerFlag_CanAnswerRuleViolations)){ //Rule violations channel
 			continue;
 		}
+
+		if (itn->first == CHANNEL_STAFF && player->getGroupName() != "God")
+			continue;
+
+		if (itn->first == CHANNEL_TUTOR && player->getGroupName() != "Tutor" && player->getAccessLevel() < 2)
+			continue;
+
+		if (itn->first == CHANNEL_GAMEMASTER && player->getGroupName() != "Gamemaster" && player->getAccessLevel() < 3)
+			continue;
 
 		ChatChannel *channel = itn->second;
 		list.push_back(channel);
@@ -521,17 +516,6 @@ ChatChannel* Chat::getChannel(Player* player, uint16_t channelId)
 	if(channelId == CHANNEL_GUILD){
 		GuildChannelMap::iterator git = m_guildChannels.find(player->getGuildId());
 		if(git != m_guildChannels.end()){
-			return git->second;
-		}
-		return NULL;
-	}
-	else if(channelId == CHANNEL_PARTY){
-		if(player->getParty() == NULL) {
-			return NULL;
-		}
-
-		PartyChannelMap::iterator git = m_partyChannels.find(player->getParty());
-		if(git != m_partyChannels.end()){
 			return git->second;
 		}
 		return NULL;

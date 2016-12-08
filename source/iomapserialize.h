@@ -87,9 +87,15 @@ protected:
 	bool loadMapBinary(Map* map);
 	bool saveMapBinary(Map* map);
 
+	// Tile Map Data Storage
+	bool loadMapData(Map* map);
+	bool saveMapData(Map* map);
+
 	bool saveItem(PropWriteStream& stream, const Item* item);
 	bool saveTile(PropWriteStream& stream, const Tile* tile);
+	bool saveDataTile(PropWriteStream& stream, const Tile* tile);
 	bool loadItem(PropStream& propStream, Cylinder* parent, bool depotTransfer = false);
+	bool loadDataItem(PropStream& propStream, Cylinder* parent);
 	bool loadContainer(PropStream& propStream, Container* container);
 };
 

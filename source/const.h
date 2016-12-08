@@ -56,7 +56,7 @@ enum MagicEffectClasses {
 	NM_ME_SOUND_PURPLE     = 0x16, //22
 	NM_ME_SOUND_BLUE       = 0x17, //23
 	NM_ME_SOUND_WHITE      = 0x18, //24
-
+	
 	//for internal use, dont send to client
 	NM_ME_NONE             = 0xFF,
 	NM_ME_UNK              = 0xFFFF
@@ -78,7 +78,7 @@ enum ShootType_t {
 	NM_SHOOT_SNOWBALL       = 0x0C, //12
 	NM_SHOOT_POWERBOLT      = 0x0D, //13
 	NM_SHOOT_POISONFIELD    = 0x0E, //14
-
+	
 	//for internal use, dont send to client
 	NM_SHOOT_WEAPONTYPE     = 0xFE, //254
 	NM_SHOOT_NONE           = 0xFF,
@@ -233,6 +233,14 @@ enum WieldInfo_t{
 	WIELDINFO_PREMIUM   = 8
 };
 
+enum AccountType_t {
+	ACCOUNTTYPE_NORMAL,
+	ACCOUNTTYPE_TUTOR,
+	ACCOUNTTYPE_SENIOR_TUTOR,
+	ACCOUNTTYPE_GAMEMASTER,
+	ACCOUNTTYPE_GOD
+};
+
 enum Skulls_t{
 	SKULL_NONE      = 0,
 	SKULL_YELLOW    = 1,
@@ -275,7 +283,6 @@ enum item_t {
 
 	ITEM_DEPOT            = 2594,
 	ITEM_LOCKER1          = 2589,
-	ITEM_GLOWING_SWITCH   = 11063,
 
 	ITEM_MALE_CORPSE	  = 3058,
 	ITEM_FEMALE_CORPSE	  = 3065,
@@ -297,16 +304,7 @@ enum item_t {
 	ITEM_LETTER_STAMPED   = 2598,
 	ITEM_LABEL            = 2599,
 
-	ITEM_DOCUMENT_RO      = 1968, //read-only
-
-	ITEM_GATE_EXPERTISE_1	= 1227,
-	ITEM_GATE_EXPERTISE_2	= 1229,
-	ITEM_GATE_EXPERTISE_3	= 1245,
-	ITEM_GATE_EXPERTISE_4	= 1247,
-	ITEM_GATE_EXPERTISE_5	= 1259,
-	ITEM_GATE_EXPERTISE_6	= 1261,
-	ITEM_GATE_EXPERTISE_7	= 3540,
-	ITEM_GATE_EXPERTISE_8	= 3549
+	ITEM_DOCUMENT_RO      = 1968 //read-only
 };
 
 enum PlayerFlags{
@@ -356,7 +354,7 @@ enum PlayerFlags{
 	PlayerFlag_CannotMoveCreatures,         //2^42 = 4398046511104
 	PlayerFlag_CanReportBugs,				//2^43 = 8796093022208
 	PlayerFlag_CanSeeSpecialDescription,    //2^44 = 17592186044416
-	PlayerFlag_CannotBeSeen,				//2^45 = 35184372088832
+	PlayerFlag_SpecialMoveUse,				//2^45 = 35184372088832
 	//add new flags here
 	PlayerFlag_LastFlag
 };
@@ -374,7 +372,7 @@ enum ViolationActions_t
 	Action_IpBan                    = 1 << 7
 };
 
-const int maxViolationLevel = 18;
+const int maxViolationLevel = 3;
 
 const int32_t violationReasons[maxViolationLevel + 1] =
 {
@@ -408,3 +406,4 @@ const int32_t violationStatements[maxViolationLevel + 1] =
 #define IS_IN_KEYRANGE(key, range) (key >= PSTRG_##range##_START && ((key - PSTRG_##range##_START) < PSTRG_##range##_SIZE))
 
 #endif
+

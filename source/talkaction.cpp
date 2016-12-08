@@ -418,8 +418,6 @@ bool TalkAction::serverDiag(Player* player, const std::string& words, const std:
 	text << "libxml: " << XML_DEFAULT_VERSION << "\n";
 	text << "lua: " << LUA_RELEASE << "\n";
 
-	//TODO: more information that could be useful
-
 	player->sendTextMessage(MSG_STATUS_CONSOLE_BLUE, text.str().c_str());
 
 	return true;

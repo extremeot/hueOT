@@ -55,11 +55,12 @@ enum ConditionType_t {
 	//CONDITION_DAZZLED        = 1 << 19,
 	//CONDITION_CURSED         = 1 << 20,
 	CONDITION_EXHAUST_COMBAT = 1 << 21,
-	CONDITION_EXHAUST_HEAL   = 1 << 22,
+	CONDITION_EXHAUST_HEAL   = 1 << 21,
 	CONDITION_PACIFIED       = 1 << 23, // Cannot attack anything
 	CONDITION_HUNTING        = 1 << 24, // Killing monsters
 	CONDITION_TRADE_MUTED    = 1 << 25, // Cannot talk on trade channels
-	CONDITION_EXHAUST_OTHERS = 1 << 26
+	CONDITION_EXHAUST_OTHERS = 1 << 26,
+	CONDITION_WALK_DELAY	 = 1 << 27  // Can't move
 };
 
 enum ConditionEnd_t{

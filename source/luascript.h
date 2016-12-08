@@ -113,7 +113,7 @@ public:
 	DBResult* getResultByID(uint32_t id);
 	uint32_t addResult(DBResult* res);
 	bool removeResult(uint32_t id);
-
+	
 	void addGlobalStorageValue(const uint32_t key, const int32_t value);
 	bool getGlobalStorageValue(const uint32_t key, int32_t& value) const;
 	bool eraseGlobalStorageValue(const uint32_t key);
@@ -194,8 +194,8 @@ private:
 
 	//result map
 	static uint32_t m_lastResultId;
-	static DBResultMap m_tempResults;
-
+	static DBResultMap m_tempResults;	
+	
 	//for npc scripts
 	Npc* m_curNpc;
 
@@ -341,6 +341,9 @@ protected:
 	static bool getArea(lua_State *L, std::list<uint32_t>& list, uint32_t& rows);
 
 	//lua functions
+#ifdef __ENABLE_PARTY_SHARE_EXPERIENCE__
+	static int luaSetSharedExperience(lua_State *L);
+#endif
 	static int luaGetOTSYSTime(lua_State *L);
 	static int luaGetConfigValue(lua_State *L);
 	static int luaDoRemoveItem(lua_State *L);
@@ -354,7 +357,6 @@ protected:
 	static int luaDoSendDistanceShoot(lua_State *L);
 	static int luaDoChangeTypeItem(lua_State *L);
 	static int luaDoSendAnimatedText(lua_State *L);
-	static int luaSendOutfitWindow(lua_State *L);
 	static int luaDoShowTextWindow(lua_State *L);
 	static int luaDoShowTextDialog(lua_State *L);
 	static int luaDoDecayItem(lua_State *L);
@@ -408,6 +410,10 @@ protected:
 	static int luaGetTownTemplePosition(lua_State *L);
 	static int luaGetWaypointPositionByName(lua_State *L);
 
+	static int luaMonsterOnMap(lua_State *L);
+	static int luaSummon(lua_State *L);
+	static int luaCountObjectsOnMap(lua_State *L);
+
 	//queries
 	static int luaGetPlayerGUIDByName(lua_State *L);
 	static int luaGetPlayerByAccountNumber(lua_State *L);
@@ -430,6 +436,8 @@ protected:
 	static int luaGetThingDefaultDescription(lua_State *L);
 	static int luaGetItemTypeDefaultDescription(lua_State *L);
 	static int luaGetItemSpecialDescription(lua_State *L);
+	static int luaGetItemIdByClientId(lua_State *L);
+	static int luaClientIdById(lua_State *L);
 
 	//set item
 	static int luaDoSetItemActionId(lua_State *L);
@@ -521,7 +529,6 @@ protected:
 	static int luaGetCreatureCondition(lua_State *L);
 	static int luaGetPlayerModes(lua_State* L);
 	static int luaDoSavePlayer(lua_State *L);
-	static int luaDoPlayerOpenChannel(lua_State* L);
 
 	static int luaGetWorldType(lua_State *L);
 	static int luaGetWorldTime(lua_State *L);
@@ -547,17 +554,6 @@ protected:
 	static int luaGetContainerItem(lua_State *L);
 	static int luaDoAddContainerItem(lua_State *L);
 	static int luaGetDepotId(lua_State *L);
-
-	// bans
-	static int luaAddPlayerBan(lua_State *L);
-	static int luaAddAccountBan(lua_State *L);
-	static int luaAddIPBan(lua_State *L);
-	static int luaRemoveAccountBan(lua_State *L);
-	static int luaRemovePlayerBan(lua_State *L);
-	static int luaRemoveIPBan(lua_State *L);
-	static int luaGetPlayerBanList(lua_State *L);
-	static int luaGetAccountBanList(lua_State *L);
-	static int luaGetIPBanList(lua_State *L);
 
 	//
 	static int luaCreateCombatObject(lua_State *L);
@@ -625,13 +621,6 @@ protected:
 	static int luaGetCreatureSummons(lua_State *L);
 	static int luaGetSpectators(lua_State *L);
 	static int luaGetPartyMembers(lua_State *L);
-
-	static int luaIsPartyLeader(lua_State* L);
-	static int luaIsPartySharedExperienceActive(lua_State* L);
-	static int luaSetPartySharedExperience(lua_State* L);
-	static int luaSendPartyChannelMessage(lua_State* L);
-	static int luaCanUseSharedExperience(lua_State* L);
-
 	static int luaHasCondition(lua_State *L);
 
 	static int luaIsCreatureImmuneToCondition(lua_State *L);
@@ -665,7 +654,9 @@ protected:
 	static int luaDoSaveServer(lua_State *L);
 	static int luaDoSetGameState(lua_State *L);
 	static int luaDoReloadInfo(lua_State *L);
-	static int luaDoRefreshMap(lua_State *L);
+	static int luaSendOutfitWindow(lua_State *L);
+	static int luaGetPlayerId(lua_State *L);
+
 	//
 	static int luaGetPlayerIp(lua_State *L);
 
@@ -708,7 +699,7 @@ protected:
 	static int32_t luaResultGetAllData(lua_State* L);
 	static int32_t luaResultNext(lua_State* L);
 	static int32_t luaResultFree(lua_State* L);
-
+	
 	static int luaGetItemWeaponType(lua_State *L);
 	static int luaGetItemAttack(lua_State *L);
 	static int luaGetItemDefense(lua_State *L);

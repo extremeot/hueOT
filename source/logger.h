@@ -31,14 +31,9 @@
 	#define __OTSERV_PRETTY_FUNCTION__ __FUNCDNAME__
 #endif
 
-#define LOG_MESSAGE(channel, type, level, message) \
-	Logger::getInstance()->logMessage(channel, type, level, message, __OTSERV_PRETTY_FUNCTION__);
+#define LOG_MESSAGE(channel, message) Logger::getInstance()->logMessage(channel, message, __OTSERV_PRETTY_FUNCTION__);
 
-enum eLogType {
-	LOGTYPE_EVENT,
-	LOGTYPE_WARNING,
-	LOGTYPE_ERROR
-};
+#define LOG_PLAYERMESSAGE(title, message) Logger::getInstance()->logPlayerMessage(title, message, __OTSERV_PRETTY_FUNCTION__);
 
 class Logger {
 public:
@@ -48,10 +43,13 @@ public:
 		return &instance;
 	}
 
-	void logMessage(const char* channel, eLogType type, int level,
-			std::string message, const char* func);
+	void logMessage(const char* channel, std::string message, const char* func);
+	void logPlayerMessage(const char* title, std::string message, const char* func);
+
 private:
 	std::ofstream m_file;
+	std::ofstream m_playermessages;
+
 	bool m_registering;
 	Logger();
 };

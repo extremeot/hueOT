@@ -25,7 +25,7 @@
 #include "creature.h"
 #include <string>
 
-#define MAX_LOOTCHANCE 100000
+#define MAX_LOOTCHANCE 1000
 #define MAX_STATICWALK 100
 
 struct LootBlock{
@@ -142,11 +142,6 @@ public:
 
 	int32_t changeTargetSpeed;
 	int32_t changeTargetChance;
-	
-	int32_t targetStrategiesNearestPercent;
-	int32_t targetStrategiesLowerHPPercent;
-	int32_t targetStrategiesMostDamagePercent;
-	int32_t targetStrategiesRandom;	
 
 	MonsterScriptList scriptList;
 

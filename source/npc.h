@@ -145,6 +145,12 @@ public:
 	virtual const std::string& getName() const { return name; };
 	virtual const std::string& getNameDescription() const { return name; };
 
+	void doLoseAllFocus() {
+		hasScriptedFocus = false;
+		turnToInitialLookDirection();
+		setCreatureFocus(NULL);
+	}
+
 	void doSay(const std::string& text, SpeakClasses type, Player* player);
 
 	void doMove(Direction dir);
@@ -159,7 +165,6 @@ public:
 
 	void turnToCreature(Creature* creature);
 	void setCreatureFocus(Creature* creature);
-	void setInitialLookDirection(Direction dir) { initialLookDir = dir; };
 	void turnToInitialLookDirection();
 	bool getParameter(const std::string key, std::string& value);
 	NpcScriptInterface* getScriptInterface();

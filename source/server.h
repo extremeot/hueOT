@@ -62,7 +62,7 @@ class Service : public ServiceBase
 {
 public:
 	bool is_single_socket() const {return ProtocolType::server_sends_first;}
-	bool is_checksummed() const {return ProtocolType::use_checksum;}
+	bool is_checksummed() const { return false; }
 	uint8_t get_protocol_identifier() const {return ProtocolType::protocol_identifier;}
 	const char* get_protocol_name() const {return ProtocolType::protocol_name();}
 

@@ -18,7 +18,7 @@
 // Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-
+#include "logger.h"
 #include "connection.h"
 #include "protocol.h"
 #include "outputmessage.h"
@@ -27,8 +27,8 @@
 #include "tools.h"
 #include "server.h"
 #include "protocolgame.h"
-#include "admin.h"
 #include "status.h"
+#include "configmanager.h"
 #include <boost/bind.hpp>
 
 bool Connection::m_logError = true;
@@ -36,6 +36,8 @@ bool Connection::m_logError = true;
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 uint32_t Connection::connectionCount = 0;
 #endif
+
+extern ConfigManager g_config;
 
 Connection_ptr ConnectionManager::createConnection(boost::asio::ip::tcp::socket* socket,
 	boost::asio::io_service& io_service, ServicePort_ptr servicer)
@@ -176,7 +178,7 @@ void Connection::closeSocket()
 		}
 		catch(boost::system::system_error& e){
 			if(m_logError){
-				LOG_MESSAGE("NETWORK", LOGTYPE_ERROR, 1, e.what());
+				LOG_MESSAGE("NETWORK", e.what());
 				m_logError = false;
 			}
 		}
@@ -231,7 +233,7 @@ void Connection::deleteConnectionTask()
 	}
 	catch(boost::system::system_error& e){
 		if(m_logError){
-			LOG_MESSAGE("NETWORK", LOGTYPE_ERROR, 1, e.what());
+			LOG_MESSAGE("NETWORK", e.what());
 			m_logError = false;
 		}
 	}
@@ -259,7 +261,7 @@ void Connection::acceptConnection()
 	}
 	catch(boost::system::system_error& e){
 		if(m_logError){
-			LOG_MESSAGE("NETWORK", LOGTYPE_ERROR, 1, e.what());
+			LOG_MESSAGE("NETWORK", e.what());
 			m_logError = false;
 			closeConnection();
 		}
@@ -282,6 +284,21 @@ void Connection::parseHeader(const boost::system::error_code& error)
 		return;
 	}
 
+	if (g_config.getNumber(ConfigManager::MAX_PACKETS_PER_SECOND) != 0){
+		uint32_t timePassed = std::max<uint32_t>(1, (time(NULL) - m_timeConnected) + 1);
+		if ((++m_packetsSent / timePassed) > (uint32_t)g_config.getNumber(ConfigManager::MAX_PACKETS_PER_SECOND)) {
+			std::cout << convertIPToString(getIP()) << " disconnected for exceeding packet per second limit." << std::endl;
+			closeConnection();
+			m_connectionLock.unlock();
+			return;
+		}
+
+		if (timePassed > 2) {
+			m_timeConnected = time(NULL);
+			m_packetsSent = 0;
+		}
+	}
+
 	--m_pendingRead;
 
 	try{
@@ -297,7 +314,7 @@ void Connection::parseHeader(const boost::system::error_code& error)
 	}
 	catch(boost::system::system_error& e){
 		if(m_logError){
-			LOG_MESSAGE("NETWORK", LOGTYPE_ERROR, 1, e.what());
+			LOG_MESSAGE("NETWORK", e.what());
 			m_logError = false;
 			closeConnection();
 		}
@@ -359,7 +376,7 @@ void Connection::parsePacket(const boost::system::error_code& error)
 	}
 	catch(boost::system::system_error& e){
 		if(m_logError){
-			LOG_MESSAGE("NETWORK", LOGTYPE_ERROR, 1, e.what());
+			LOG_MESSAGE("NETWORK", e.what());
 			m_logError = false;
 			closeConnection();
 		}
@@ -421,7 +438,7 @@ void Connection::internalSend(OutputMessage_ptr msg)
 	}
 	catch(boost::system::system_error& e){
 		if(m_logError){
-			LOG_MESSAGE("NETWORK", LOGTYPE_ERROR, 1, e.what());
+			LOG_MESSAGE("NETWORK", e.what());
 			m_logError = false;
 		}
 	}

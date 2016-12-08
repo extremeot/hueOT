@@ -75,9 +75,9 @@ DatabaseMySQL::DatabaseMySQL()
 			freeResult(result);
 
 			if(max_query < 16777216){
-				std::cout << std::endl << "[Warning] max_allowed_packet might be set too low for binary map storage." << std::endl;
-				std::cout << "Use the following query to raise max_allow_packet: ";
-				std::cout << "SET GLOBAL max_allowed_packet = 16777216;";
+				//std::cout << std::endl << "\n\n[Warning] max_allowed_packet might be set too low for binary map storage." << std::endl;
+				//std::cout << "Use the following query to raise max_allow_packet: ";
+				//std::cout << "\nSET GLOBAL max_allowed_packet = 16777216;\n\n";
 			}
 		}
 	}

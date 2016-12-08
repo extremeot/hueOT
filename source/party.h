@@ -58,29 +58,34 @@ public:
 	void updateAllPartyIcons();
 	void updatePartyIcons(Player* player);
 	void broadcastPartyMessage(MessageClasses msgClass, const std::string& msg, bool sendToInvitations = false);
-	bool sendChannelMessage(Player* player, SpeakClasses type, const std::string& msg) const;
 	bool disbandParty() {return (memberList.empty() && inviteList.empty());}
 
+#ifdef __ENABLE_PARTY_SHARE_EXPERIENCE__
 	void shareExperience(uint64_t experience, bool fromMonster);
 	bool setSharedExperience(Player* player, bool _sharedExpActive);
 	bool isSharedExperienceActive() const {return sharedExpActive;}
 	bool isSharedExperienceEnabled() const {return sharedExpEnabled;}
 	bool canUseSharedExperience(const Player* player) const;
 	void updateSharedExperience();
+
 	void addPlayerHealedMember(Player* player, uint32_t points);
 	void addPlayerDamageMonster(Player* player, uint32_t points);
 	void clearPlayerPoints(Player* player);
+#endif
 
 	const PlayerVector& getMemberList() const {return memberList;}
 
 protected:
+#ifdef __ENABLE_PARTY_SHARE_EXPERIENCE__
 	bool sharedExpActive;
 	bool sharedExpEnabled;
+#endif
 
 	Player* leader;
 	PlayerVector memberList;
 	PlayerVector inviteList;
 
+#ifdef __ENABLE_PARTY_SHARE_EXPERIENCE__
 	struct CountBlock_t{
 		int32_t totalHeal;
 		int32_t totalDamage;
@@ -90,6 +95,7 @@ protected:
 	CountMap pointMap;
 
 	bool canEnableSharedExperience();
+#endif
 };
 
 #endif

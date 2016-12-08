@@ -239,6 +239,19 @@ Mailbox* Tile::getMailbox() const
 	return NULL;
 }
 
+Door* Tile::getDoorItem() const
+{
+	Door* door = NULL;
+	Item* iiItem = NULL;
+	for (uint32_t i = 0; i < getThingCount(); ++i){
+		iiItem = __getThing(i)->getItem();
+		if (iiItem && (door = iiItem->getDoor()))
+			return door;
+	}
+
+	return NULL;
+}
+
 BedItem* Tile::getBedItem() const
 {
 	if(!hasFlag(TILESTATE_BED)){
@@ -442,6 +455,20 @@ void Tile::onRemoveTileItem(const SpectatorVec& list, std::vector<uint32_t>& old
 	}
 }
 
+uint32_t Tile::getHeight() const
+{
+	uint32_t height = 0;
+	Item* iiItem = NULL;
+	for (uint32_t i = 0; i < getThingCount(); ++i){
+		iiItem = __getThing(i)->getItem();
+
+		if (iiItem && iiItem->hasProperty(HASHEIGHT))
+			++height;
+	}
+
+	return height;
+}
+
 void Tile::onUpdateTile()
 {
 	const Position& cylinderMapPos = getPosition();
@@ -582,8 +609,8 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 				return RET_NOTPOSSIBLE;
 			}
 
-			if(hasFlag(TILESTATE_BLOCKSOLID) || (hasBitSet(FLAG_PATHFINDING, flags) && hasFlag(TILESTATE_NOFIELDBLOCKPATH))){
-				if(!(monster->canPushItems() || hasBitSet(FLAG_IGNOREBLOCKITEM, flags) ) ){
+			if (hasFlag(TILESTATE_BLOCKSOLID) || (hasBitSet(FLAG_PATHFINDING, flags) && hasFlag(TILESTATE_NOFIELDBLOCKPATH))) {
+				if (!(monster->canPushItems() || hasBitSet(FLAG_IGNOREBLOCKITEM, flags))) {
 					return RET_NOTPOSSIBLE;
 				}
 			}
@@ -598,7 +625,7 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 					//3) Monster is already afflicated by this type of condition
 					if(hasBitSet(FLAG_IGNOREFIELDDAMAGE, flags)){
 						if(!monster->hasCondition(Combat::DamageToConditionType(combatType), false)){
-							if(!monster->canPushItems()){
+							if(!monster->canPushItems() || !monster->hadRecentBattle()){
 								return RET_NOTPOSSIBLE;
 							}
 						}
@@ -611,11 +638,7 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 		}
 		else if(const Player* player = creature->getPlayer()){
 			if(creatures && !creatures->empty() && !hasBitSet(FLAG_IGNOREBLOCKCREATURE, flags)){
-				for(CreatureVector::const_iterator cit = creatures->begin(); cit != creatures->end(); ++cit){
-					if(!player->canWalkthrough(*cit)){
-						return RET_NOTPOSSIBLE;
-					}
-				}
+				return RET_NOTENOUGHROOM; //RET_NOTPOSSIBLE
 			}
 
 			if(player->getParent() == NULL && hasFlag(TILESTATE_NOLOGOUT)){
@@ -635,10 +658,6 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 				}
 			}
 
-			if(hasFlag(TILESTATE_NOPVPZONE) && player->isPzLocked()){
-				return RET_PLAYERISPZLOCKED;
-			}
-
 			if(hasFlag(TILESTATE_PROTECTIONZONE) && player->isPzLocked()){
 				return RET_PLAYERISPZLOCKED;
 			}
@@ -650,18 +669,13 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 		}
 
 		if(items){
-			MagicField* field = getFieldItem();
-			if(field && field->isBlocking(creature)){
-				return RET_NOTPOSSIBLE;
-			}
-
-			if(!hasBitSet(FLAG_IGNOREBLOCKITEM, flags)){
+			if (!hasBitSet(FLAG_IGNOREBLOCKITEM, flags)) {
 				//If the FLAG_IGNOREBLOCKITEM bit isn't set we dont have to iterate every single item
-				if(hasFlag(TILESTATE_BLOCKSOLID)){
+				if (hasFlag(TILESTATE_BLOCKSOLID)) {
 					return RET_NOTENOUGHROOM;
 				}
 			}
-			else{
+			else {
 				//FLAG_IGNOREBLOCKITEM is set
 				if(ground){
 					const ItemType& iiType = Item::items[ground->getID()];
@@ -684,19 +698,8 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 		}
 	}
 	else if(const Item* item = thing->getItem()){
-#ifdef __DEBUG__
-		if(thing->getParent() == NULL && !hasBitSet(FLAG_NOLIMIT, flags)){
-			std::cout << "Notice: Tile::__queryAdd() - thing->getParent() == NULL" << std::endl;
-		}
-#endif
-
-		if(items){
-			int64_t c = g_config.getNumber(ConfigManager::MAX_STACK_SIZE);
-			//acceptable stack sizes should be higher than 100 and <= than 65535
-			uint16_t max_stack_size = uint16_t(std::max(std::min(c, int64_t(0xFFFF)), int64_t(100)));
-			if (items->size() >= max_stack_size){
-				return RET_NOTPOSSIBLE;
-			}
+		if (items && items->size() >= 0xFFFF) {
+			return RET_NOTPOSSIBLE;
 		}
 
 		if(hasBitSet(FLAG_NOLIMIT, flags)){
@@ -717,7 +720,7 @@ ReturnValue Tile::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 			}
 		}
 
-		const uint32_t itemLimit = g_config.getNumber(hasFlag(TILESTATE_PROTECTIONZONE) ? ConfigManager::PROTECTION_TILE_LIMIT : ConfigManager::TILE_LIMIT);
+		const uint32_t itemLimit = 1000;
 		if(itemLimit && getThingCount() > itemLimit)
 			return RET_TILEISFULL;
 
@@ -923,7 +926,6 @@ void Tile::__addThing(int32_t index, Thing* thing)
 							__removeThing(oldSplash, 1);
 							oldSplash->setParent(NULL);
 							g_game.FreeThing(oldSplash);
-							onUpdateTile();
 							postRemoveNotification(oldSplash, NULL, oldSplashIndex, true);
 							break;
 						}
@@ -969,9 +971,9 @@ void Tile::__addThing(int32_t index, Thing* thing)
 								oldField->setParent(NULL);
 								g_game.FreeThing(oldField);
 								postRemoveNotification(oldField, NULL, oldFieldIndex, true);
-								it = items->getBeginDownItem() - 1;
+								break;
 							}
-							else if(oldField->getID() != 1423 && oldField->getID() != 1424 && oldField->getID() != 1425){
+							else{
 								//This magic field cannot be replaced.
 								item->setParent(NULL);
 								g_game.FreeThing(item);
@@ -1023,7 +1025,6 @@ void Tile::__updateThing(Thing* thing, uint16_t itemId, uint32_t count)
 	updateTileFlags(item, false);
 
 	onUpdateTileItem(item, oldType, item, newType);
-	onUpdateTile();
 }
 
 void Tile::__replaceThing(uint32_t index, Thing* thing)
@@ -1454,7 +1455,7 @@ void Tile::postAddNotification(Thing* thing, const Cylinder* oldParent, int32_t 
 		}
 		else if(hasFlag(TILESTATE_TRASHHOLDER)){
 			TrashHolder* trashholder = getTrashHolder();
-			if(trashholder){
+			if (trashholder){
 				trashholder->__addThing(thing);
 			}
 		}
@@ -1519,7 +1520,7 @@ void Tile::__internalAddThing(uint32_t index, Thing* thing)
 	if(creature){
 		g_game.clearSpectatorCache();
 		CreatureVector* creatures = makeCreatures();
-		creatures->insert(creatures->end(), creature);
+		creatures->insert(creatures->begin(), creature);
 		++thingCount;
 	}
 	else{
@@ -1561,6 +1562,8 @@ void Tile::__internalAddThing(uint32_t index, Thing* thing)
 			++items->downItemCount;
 			++thingCount;
 		}
+
+		g_game.startDecay(item);
 
 		updateTileFlags(item, false);
 	}

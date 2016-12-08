@@ -201,9 +201,6 @@ bool Protocol::RSA_decrypt(NetworkMessage& msg)
 bool Protocol::RSA_decrypt(RSA* rsa, NetworkMessage& msg)
 {
 	if(msg.getMessageLength() - msg.getReadPos() != 128){
-#ifdef __DEBUG_NET_DETAIL__
-		std::cout << "Warning: [Protocol::RSA_decrypt]. Not valid packet size" << std::endl;
-#endif
 		return false;
 	}
 
@@ -212,9 +209,6 @@ bool Protocol::RSA_decrypt(RSA* rsa, NetworkMessage& msg)
 	}
 
 	if(msg.GetByte() != 0){
-#ifdef __DEBUG_NET_DETAIL__
-		std::cout << "Warning: [Protocol::RSA_decrypt]. First byte != 0" << std::endl;
-#endif
 		return false;
 	}
 

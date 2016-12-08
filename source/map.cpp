@@ -27,8 +27,8 @@
 #include "tile.h"
 #include "combat.h"
 #include "creature.h"
-#include "monster.h"
 #include "player.h"
+#include "game.h"
 #include "configmanager.h"
 #include <boost/config.hpp>
 #include <boost/bind.hpp>
@@ -40,6 +40,7 @@
 #include <algorithm>
 
 extern ConfigManager g_config;
+extern Game g_game;
 
 Map::Map()
 {
@@ -64,11 +65,21 @@ bool Map::loadMap(const std::string& identifier, const std::string& type)
 		return false;
 	}
 
-	std::cout << ":: Loading map from: " << identifier << " " << loader->getSourceDescription() << std::endl;
-
 	if(!loader->loadMap(this, identifier)){
 		std::cout << "FATAL: [OTBM loader] " << loader->getLastErrorString() << std::endl;
 		return false;
+	}
+
+	// Load houseareas
+	if (!Houses::getInstance().loadHouseAreas())
+	{
+		std::cout << "WARNING: Could not load house areas." << std::endl;
+	}
+
+	// Loading special houses
+	if (!Houses::getInstance().loadSpecialHouses())
+	{
+		std::cout << "WARNING: Could not load special houses." << std::endl;
 	}
 
 	if(!loader->loadSpawns(this)){
@@ -82,10 +93,12 @@ bool Map::loadMap(const std::string& identifier, const std::string& type)
 	delete loader;
 
 	IOMapSerialize* IOMapSerialize = IOMapSerialize::getInstance();
-	IOMapSerialize->updateHouseInfo();
+	if (g_config.getBoolean(ConfigManager::UPDATE_DATABASE_HOUSES))
+		IOMapSerialize->updateHouseInfo();
 	IOMapSerialize->processHouseAuctions();
 	IOMapSerialize->loadHouseInfo(this);
 	IOMapSerialize->loadMap(this);
+
 	return true;
 }
 
@@ -111,7 +124,31 @@ bool Map::saveMap()
 			break;
 		}
 	}
+
 	return saved;
+}
+
+void Map::cleanSaveableTiles()
+{
+	for (auto it : saveableTileMap)
+	{
+		std::list<Item*> moveItemList;
+		Tile* tile = getTile(it);
+
+		if (tile->isHouseTile())
+			continue;
+
+		if (const TileItemVector* items = tile->getItemList()){
+			for (ItemVector::const_iterator pitem = items->begin(); pitem != items->end(); ++pitem) {
+				if (!(*pitem)->isDoor() && !(*pitem)->isLevelDoor())
+					moveItemList.push_back(*pitem);
+			}
+		}
+
+		for (std::list<Item*>::iterator aitem = moveItemList.begin(); aitem != moveItemList.end(); ++aitem) {
+			g_game.internalRemoveItem(*aitem);
+		}
+	}
 }
 
 Tile* Map::getTile(int32_t x, int32_t y, int32_t z)
@@ -120,7 +157,6 @@ Tile* Map::getTile(int32_t x, int32_t y, int32_t z)
 		return NULL;
 	}
 
-	//QTreeLeafNode* leaf = getLeaf(x, y);
 	QTreeLeafNode* leaf = QTreeNode::getLeafStatic(&root, x, y);
 	if(leaf){
 		Floor* floor = leaf->getFloor(z);
@@ -179,23 +215,13 @@ void Map::setTile(int32_t x, int32_t y, int32_t z, Tile* newtile)
 	Floor* floor = leaf->createFloor(z);
 	uint32_t offsetX = x & FLOOR_MASK;
 	uint32_t offsetY = y & FLOOR_MASK;
-	if(!floor->tiles[offsetX][offsetY]){
-		floor->tiles[offsetX][offsetY] = newtile;
-		newtile->qt_node = leaf;
-	}
-	else{
-		std::cout << "Error: Map::setTile() already exists." << std::endl;
-	}
 
-	if(newtile->hasFlag(TILESTATE_REFRESH)){
-		RefreshBlock_t rb;
-		rb.lastRefresh = OTSYS_TIME();
-		if(TileItemVector* newtileItems = newtile->getItemList()){
-			for(ItemVector::iterator it = newtileItems->getBeginDownItem(); it != newtileItems->getEndDownItem(); ++it){
-				rb.list.push_back((*it)->clone());
-			}
-		}
-		refreshTileMap[newtile] = rb;
+	floor->tiles[offsetX][offsetY] = newtile;
+	newtile->qt_node = leaf;
+
+	if (!newtile->canSaveData())
+	{
+		saveableTileMap.push_back(newtile->getPosition());
 	}
 }
 
@@ -1076,17 +1102,12 @@ int32_t AStarNodes::getMapWalkCost(const Creature* creature, AStarNode* node,
 int32_t AStarNodes::getTileWalkCost(const Creature* creature, const Tile* tile)
 {
 	int cost = 0;
-	if (const Creature* blockingCreature = tile->getTopVisibleCreature(creature)) {
-		//destroy creature cost (not really)
-		const Monster* monster = creature->getMonster();
-		const Monster* blockingMonster = blockingCreature->getMonster();
-		if (monster == NULL || blockingMonster == NULL ||
-			!monster->canPushCreatures() ||
-			!blockingMonster->isPushable())
-		{
+	if(tile->getCreatureCount() != 0){
+		if (creature->getMonster() && creature->getMonster()->canPushCreatures())
+			cost += 3;
+		else
 			//destroy creature cost
 			cost += MAP_NORMALWALKCOST * 3;
-		}
 	}
 
 	if(const MagicField* field = tile->getFieldItem()){

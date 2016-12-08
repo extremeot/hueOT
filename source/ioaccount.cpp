@@ -37,31 +37,33 @@ Account IOAccount::loadAccount(uint32_t id, bool preLoad/* = false*/)
 	DBQuery query;
 	DBResult* result;
 
-	query << "SELECT `id`, `password`, `premend`, `warnings` FROM `accounts` WHERE `id` = " << id;
+	query << "SELECT `id`, `password`, `premend`, `warnings`, `type` FROM `accounts` WHERE `id` = " << id;
 	if(!(result = db->storeQuery(query.str()))){
 		return acc;
 	}
 
-	acc.number = result->getDataInt("id");
-	acc.password = result->getDataString("password");
-	acc.premEnd = result->getDataInt("premend");
-	acc.warnings = result->getDataInt("warnings");
+	acc.setAccountNumber(result->getDataInt("id"));
+	acc.setAccountPassword(result->getDataString("password"));
+	acc.setPremiumEnd(result->getDataInt("premend"));
+	acc.setAccountWarnings(result->getDataInt("warnings"));
+	acc.setAccountType((AccountType_t)result->getDataInt("type"));
+
 	db->freeResult(result);
 
 	if(preLoad)
 		return acc;
 
 	query.str("");
-	query << "SELECT `name` FROM `players` WHERE `account_id` = " << acc.number;
+	query << "SELECT `name` FROM `players` WHERE `account_id` = " << acc.getAccountNumber();
 	if(!(result = db->storeQuery(query.str()))){
 		return acc;
 	}
 
 	do {
-		acc.charList.push_back(result->getDataString("name"));
+		acc.getCharacterList()->push_back(result->getDataString("name"));
 	} while(result->next());
 
-	acc.charList.sort();
+	acc.getCharacterList()->sort();
 	db->freeResult(result);
 	return acc;
 }
@@ -71,7 +73,7 @@ bool IOAccount::saveAccount(Account acc)
 	Database* db = Database::instance();
 	DBQuery query;
 
-	query << "UPDATE `accounts` SET `premend` = " << acc.premEnd << ", `warnings` = " << acc.warnings << " WHERE `id` = " << acc.number;
+	query << "UPDATE `accounts` SET `premend` = " << acc.getPremiumEnd() << ", `warnings` = " << acc.getAccountWarnings() << " WHERE `id` = " << acc.getAccountNumber();
 	return db->executeQuery(query.str());
 }
 

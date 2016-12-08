@@ -30,18 +30,32 @@ extern Game g_game;
 
 bool IOMapSerialize::loadMap(Map* map)
 {
-	int64_t start = OTSYS_TIME();
 	bool s = false;
 
 	if(g_config.getString(ConfigManager::MAP_STORAGE_TYPE) == "relational")
 		s = loadMapRelational(map);
-	else if(g_config.getString(ConfigManager::MAP_STORAGE_TYPE) == "binary")
+	else if (g_config.getString(ConfigManager::MAP_STORAGE_TYPE) == "binary")
+	{
 		s = loadMapBinary(map);
+
+		/*if (g_config.getBoolean(ConfigManager::RESTORE_MAP_DATA))
+		{
+			std::cout << "Restoring map data..." << std::endl;
+			saveMapBinary(map);
+			saveMapData(map);
+			std::cout << "Restored map data - You can now restart the server." << std::endl;
+			std::cin.get();
+		}
+		else {
+			std::cout << "Cleaning tiles data..." << std::endl;
+			map->cleanSaveableTiles();
+
+			std::cout << "Loading tiles data..." << std::endl;
+			loadMapData(map);
+		}*/
+	}
 	else
 		std::cout << "[IOMapSerialize::loadMap] Unknown map storage type" << std::endl;
-
-	std::cout << "Notice: Map load (" << g_config.getString(ConfigManager::MAP_STORAGE_TYPE) << ") took : " <<
-		(OTSYS_TIME() - start)/(1000.) << " s" << std::endl;
 
 	return s;
 }
@@ -52,8 +66,13 @@ bool IOMapSerialize::saveMap(Map* map)
 
 	if(g_config.getString(ConfigManager::MAP_STORAGE_TYPE) == "relational")
 		s = saveMapRelational(map);
-	else if(g_config.getString(ConfigManager::MAP_STORAGE_TYPE) == "binary")
+	else if (g_config.getString(ConfigManager::MAP_STORAGE_TYPE) == "binary")
+	{
 		s = saveMapBinary(map);
+
+		/*std::cout << "Saving tiles data..." << std::endl;
+		saveMapData(map);*/
+	}
 	else
 		std::cout << "[IOMapSerialize::saveMap] Unknown map storage type" << std::endl;
 
@@ -408,6 +427,52 @@ bool IOMapSerialize::saveItems(Database* db, uint32_t tileId, uint32_t houseId, 
 	return true;
 }
 
+bool IOMapSerialize::loadMapData(Map* map)
+{
+	Database* db = Database::instance();
+	DBQuery query;
+
+	DBResult* result = db->storeQuery("SELECT * FROM `map_data`;");
+	if (!result)
+		return false;
+
+	do {
+		unsigned long attrSize = 0;
+		const char* attr = result->getDataStream("data", attrSize);
+		PropStream propStream;
+		propStream.init(attr, attrSize);
+
+		while (propStream.size()) {
+			uint32_t item_count = 0;
+			uint16_t x = 0, y = 0;
+			uint8_t z = 0;
+
+			propStream.GET_UINT16(x);
+			propStream.GET_UINT16(y);
+			propStream.GET_UINT8(z);
+
+			Tile* tile = map->getTile(x, y, z);
+
+			if (!tile){
+				break;
+			}
+
+			if (tile->isHouseTile())
+				continue;
+
+			propStream.GET_UINT32(item_count);
+
+			while (item_count--){
+				loadDataItem(propStream, tile);
+			}
+		}
+	} while (result->next());
+
+	db->freeResult(result);
+
+	return true;
+}
+
 bool IOMapSerialize::loadMapBinary(Map* map)
 {
 	Database* db = Database::instance();
@@ -508,21 +573,21 @@ bool IOMapSerialize::loadItem(PropStream& propStream, Cylinder* parent, bool dep
 
 	bool isInContainer = (!depotTransfer && !tile);
 
-	if(iType.moveable || /* or object in a container*/ isInContainer){
+	if (iType.moveable || isInContainer){
 		//create a new item
 		item = Item::CreateItem(id);
 
-		if(item){
-			if(item->unserializeAttr(propStream)){
+		if (item){
+			if (item->unserializeAttr(propStream)){
 				Container* container = item->getContainer();
-				if(container){
-					if(!loadContainer(propStream, container)){
+				if (container){
+					if (!loadContainer(propStream, container)){
 						delete item;
 						return false;
 					}
 				}
 
-				if(parent){
+				if (parent){
 					parent->__internalAddThing(item);
 					item->__startDecaying();
 				}
@@ -538,34 +603,34 @@ bool IOMapSerialize::loadItem(PropStream& propStream, Cylinder* parent, bool dep
 		}
 	}
 	else{
-		if(tile){
+		if (tile){
 			// Stationary items like doors/beds/blackboards/bookcases
-			for(uint32_t i = 0; i < tile->getThingCount(); ++i){
+			for (uint32_t i = 0; i < tile->getThingCount(); ++i){
 				Item* findItem = tile->__getThing(i)->getItem();
 
-				if(!findItem)
+				if (!findItem)
 					continue;
 
-				if(findItem->getID() == id){
+				if (findItem->getID() == id){
 					item = findItem;
 					break;
 				}
-				else if(iType.isDoor() && findItem->getDoor()){
+				else if (iType.isDoor() && findItem->getDoor()){
 					item = findItem;
 					break;
 				}
-				else if(iType.isBed() && findItem->getBed()) {
+				else if (iType.isBed() && findItem->getBed()) {
 					item = findItem;
 					break;
 				}
 			}
 		}
 
-		if(item){
-			if(item->unserializeAttr(propStream)){
+		if (item){
+			if (item->unserializeAttr(propStream)){
 				Container* container = item->getContainer();
-				if(container){
-					if(!loadContainer(propStream, container)){
+				if (container){
+					if (!loadContainer(propStream, container)){
 						return false;
 					}
 				}
@@ -579,17 +644,17 @@ bool IOMapSerialize::loadItem(PropStream& propStream, Cylinder* parent, bool dep
 		else{
 			//The map changed since the last save, just read the attributes
 			Item* dummy = Item::CreateItem(id);
-			if(dummy){
+			if (dummy){
 				dummy->unserializeAttr(propStream);
 				Container* container = dummy->getContainer();
-				if(container){
-					if(!loadContainer(propStream, container)){
+				if (container){
+					if (!loadContainer(propStream, container)){
 						delete dummy;
 						return false;
 					}
 
-					if(depotTransfer){
-						for(ItemList::const_iterator it = container->getItems(); it != container->getEnd(); ++it){
+					if (depotTransfer){
+						for (ItemList::const_iterator it = container->getItems(); it != container->getEnd(); ++it){
 							parent->__addThing(*it);
 						}
 
@@ -605,6 +670,99 @@ bool IOMapSerialize::loadItem(PropStream& propStream, Cylinder* parent, bool dep
 	}
 
 	return true;
+}
+
+bool IOMapSerialize::loadDataItem(PropStream& propStream, Cylinder* parent)
+{
+	Item* item = NULL;
+
+	uint16_t id = 0;
+	propStream.GET_UINT16(id);
+
+	const ItemType& iType = Item::items[id];
+
+	Tile* tile = NULL;
+	if (!parent->getItem()){
+		tile = parent->getTile();
+	}
+
+	//create a new item
+	item = Item::CreateItem(id);
+
+	if (item){
+		if (item->unserializeAttr(propStream)){
+			Container* container = item->getContainer();
+			if (container){
+				if (!loadContainer(propStream, container)){
+					delete item;
+					return false;
+				}
+			}
+
+			if (parent){
+				parent->__internalAddThing(item);
+				item->__startDecaying();
+			}
+			else{
+				delete item;
+			}
+		}
+		else{
+			std::cout << "WARNING: Unserialization error in IOMapSerialize::loadItem()" << id << std::endl;
+			delete item;
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool IOMapSerialize::saveMapData(Map* map)
+{
+	Database* db = Database::instance();
+	DBQuery query;
+	DBTransaction transaction(db);
+	DBInsert stmt(db);
+	stmt.setQuery("INSERT INTO `map_data` (`data`) VALUES ");
+
+	//Start the transaction
+	if (!transaction.begin())
+		return false;
+
+	if (!db->executeQuery("DELETE FROM `map_data` WHERE 1"))
+		return false;
+
+	//clear old tile data
+	for (Map::SaveableTileMap::iterator it = map->saveableTileMap.begin();
+		it != map->saveableTileMap.end();
+		++it)
+	{
+		//save house items
+		Tile* tile = map->getTile(*it);
+
+		if (!tile)
+			continue;
+
+		if (tile->isHouseTile())
+			continue;
+
+		PropWriteStream stream;
+
+		saveDataTile(stream, tile);
+
+		uint32_t attributesSize;
+		const char* attributes = stream.getStream(attributesSize);
+		query << db->escapeBlob(attributes, attributesSize);
+		
+		if (!stmt.addRow(query))
+			return false;
+	}
+
+	if (!stmt.execute())
+		return false;
+
+	//End the transaction
+	return transaction.commit();
 }
 
 bool IOMapSerialize::saveMapBinary(Map* map)
@@ -662,6 +820,7 @@ bool IOMapSerialize::saveItem(PropWriteStream& stream, const Item* item)
 
 	// Write ID & props
 	stream.ADD_UINT16(item->getID());
+
 	item->serializeAttr(stream);
 
 	if(container){
@@ -674,6 +833,41 @@ bool IOMapSerialize::saveItem(PropWriteStream& stream, const Item* item)
 	}
 
 	stream.ADD_UINT8(0x00); // attr end
+
+	return true;
+}
+
+bool IOMapSerialize::saveDataTile(PropWriteStream& stream, const Tile* tile)
+{
+	std::vector<Item*> items;
+	for (int32_t i = tile->getThingCount(); i > 0; --i)
+	{
+		Item* item = tile->__getThing(i - 1)->getItem();
+		if (!item)
+			continue;
+
+		if (item->isDoor() || item->isLevelDoor())
+			continue;
+
+		items.push_back(item);
+	}
+
+	if (tile->getPosition().x > 0 && tile->getPosition().y > 0 && tile->getPosition().z > -1)
+	{
+		if (!items.empty()) {
+			stream.ADD_UINT16(tile->getPosition().x);
+			stream.ADD_UINT16(tile->getPosition().y);
+			stream.ADD_UINT8(tile->getPosition().z);
+			stream.ADD_UINT32(items.size());
+
+			for (std::vector<Item*>::iterator iter = items.begin();
+				iter != items.end();
+				++iter)
+			{
+				saveItem(stream, *iter);
+			}
+		}
+	}
 
 	return true;
 }
@@ -698,17 +892,20 @@ bool IOMapSerialize::saveTile(PropWriteStream& stream, const Tile* tile)
 		items.push_back(item);
 	}
 
-	if(!items.empty()) {
-		stream.ADD_UINT16(tile->getPosition().x);
-		stream.ADD_UINT16(tile->getPosition().y);
-		stream.ADD_UINT8(tile->getPosition().z);
-		stream.ADD_UINT32(items.size());
+	if (tile->getPosition().x > 0 && tile->getPosition().y > 0 && tile->getPosition().z > -1)
+	{
+		if (!items.empty()) {
+			stream.ADD_UINT16(tile->getPosition().x);
+			stream.ADD_UINT16(tile->getPosition().y);
+			stream.ADD_UINT8(tile->getPosition().z);
+			stream.ADD_UINT32(items.size());
 
-		for(std::vector<Item*>::iterator iter = items.begin();
-			iter != items.end();
-			++iter)
-		{
-			saveItem(stream, *iter);
+			for (std::vector<Item*>::iterator iter = items.begin();
+				iter != items.end();
+				++iter)
+			{
+				saveItem(stream, *iter);
+			}
 		}
 	}
 
@@ -717,6 +914,8 @@ bool IOMapSerialize::saveTile(PropWriteStream& stream, const Tile* tile)
 
 bool IOMapSerialize::updateHouseInfo()
 {
+	std::cout << ":: Update houses info..." << std::flush;
+
 	Database* db = Database::instance();
 	DBQuery query;
 
@@ -771,6 +970,8 @@ bool IOMapSerialize::updateHouseInfo()
 			return false;
 		}
 	}
+
+	std::cout << "[done]" << std::endl;
 
 	return true;
 }
@@ -857,7 +1058,6 @@ bool IOMapSerialize::loadHouseInfo(Map* map)
 			query.str("");
 		}
 	}
-
 	return true;
 }
 

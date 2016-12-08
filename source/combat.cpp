@@ -228,16 +228,6 @@ ReturnValue Combat::canTargetCreature(const Player* player, const Creature* targ
 		if(target->getZone() == ZONE_PROTECTION){
 			return RET_YOUMAYNOTATTACKAPERSONINPROTECTIONZONE;
 		}
-
-		//nopvp-zone
-		if(isPlayerCombat(target)){
-			if(player->getZone() == ZONE_NOPVP){
-				return RET_ACTIONNOTPERMITTEDINANONPVPZONE;
-			}
-			if(target->getZone() == ZONE_NOPVP){
-				return RET_YOUMAYNOTATTACKAPERSONINPROTECTIONZONE;
-			}
-		}
 	}
 
 	if(player->hasFlag(PlayerFlag_CannotUseCombat) || !target->isAttackable()){
@@ -421,11 +411,6 @@ ReturnValue Combat::canDoCombat(const Creature* attacker, const Creature* target
 			}
 		}
 		if(attacker->getPlayer() || attacker->isPlayerSummon()){
-			//nopvp-zone
-			if(target->getPlayer() && target->getTile()->hasFlag(TILESTATE_NOPVPZONE)){
-				return RET_ACTIONNOTPERMITTEDINANONPVPZONE;
-			}
-
 			return Combat::checkPVPExtraRestrictions(attacker, target, false);
 		}
 	}
@@ -622,7 +607,7 @@ void Combat::checkPVPDamageReduction(const Creature* attacker, const Creature* t
 bool Combat::CombatHealthFunc(Creature* caster, Creature* target, const CombatParams& params, void* data)
 {
 	Combat2Var* var = (Combat2Var*)data;
-	int32_t healthChange = random_range(var->minChange, var->maxChange);
+	int32_t healthChange = random_range(var->minChange, var->maxChange, DISTRO_NORMAL);
 
 	if(g_game.combatBlockHit(params.combatType, caster, target, healthChange, params.blockedByShield, params.blockedByArmor)){
 		return false;
@@ -643,7 +628,7 @@ bool Combat::CombatHealthFunc(Creature* caster, Creature* target, const CombatPa
 bool Combat::CombatManaFunc(Creature* caster, Creature* target, const CombatParams& params, void* data)
 {
 	Combat2Var* var = (Combat2Var*)data;
-	int32_t manaChange = random_range(var->minChange, var->maxChange);
+	int32_t manaChange = random_range(var->minChange, var->maxChange, DISTRO_NORMAL);
 
 	Combat::checkPVPDamageReduction(caster, target, manaChange);
 
@@ -715,19 +700,34 @@ void Combat::combatTileEffects(const SpectatorVec& list, Creature* caster, Tile*
 		if(p_caster){
 			if (p_caster->getLevel() < g_config.getNumber(ConfigManager::MIN_PVP_LEVEL)){
 				if(itemId == ITEM_WILDGROWTH){
-						if (	g_config.getNumber(ConfigManager::MIN_PVP_LEVEL) > 0)
-						{
-							itemId = ITEM_WILDGROWTH_SAFE;
-						}
+					if (g_config.getNumber(ConfigManager::MIN_PVP_LEVEL) > 0)
+					{
+						itemId = ITEM_WILDGROWTH_SAFE;
+					}
 				}
 				if(itemId == ITEM_MAGICWALL){
-						if (	g_config.getNumber(ConfigManager::MIN_PVP_LEVEL) > 0)
-						{
-							itemId = ITEM_MAGICWALL_SAFE;
-						}
+					if (g_config.getNumber(ConfigManager::MIN_PVP_LEVEL) > 0)
+					{
+						itemId = ITEM_MAGICWALL_SAFE;
+					}
+				}
+				if(itemId == ITEM_FIREFIELD){
+					itemId = ITEM_FIREFIELD_SAFE;
+				}
+				else if(itemId == ITEM_POISONFIELD){
+					itemId = ITEM_POISONFIELD_SAFE;
+				}
+				else if(itemId == ITEM_ENERGYFIELD){
+					itemId = ITEM_ENERGYFIELD_SAFE;
+				}
+				else if(itemId == ITEM_MAGICWALL){
+					itemId = ITEM_MAGICWALL_SAFE;
+				}
+				else if(itemId == ITEM_WILDGROWTH){
+					itemId = ITEM_WILDGROWTH_SAFE;
 				}
 			}
-			if (g_game.getWorldType() == WORLD_TYPE_NO_PVP || tile->hasFlag(TILESTATE_NOPVPZONE)){
+			if (g_game.getWorldType() == WORLD_TYPE_NO_PVP){
 				if(itemId == ITEM_FIREFIELD){
 					itemId = ITEM_FIREFIELD_SAFE;
 				}
@@ -1255,10 +1255,6 @@ AreaCombat::AreaCombat(const AreaCombat& rhs)
 bool AreaCombat::getList(const Position& centerPos, const Position& targetPos, std::list<Tile*>& list) const
 {
 	Tile* tile = g_game.getTile(targetPos.x, targetPos.y, targetPos.z);
-
-	if (tile && tile->hasProperty(BLOCKPROJECTILE)) {
-		return false;
-	}
 
 	const MatrixArea* area = getArea(centerPos, targetPos);
 	if(!area){

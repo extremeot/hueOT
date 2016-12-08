@@ -35,10 +35,9 @@ typedef std::list<Creature*> CreatureList;
 
 enum TargetSearchType_t{
 	TARGETSEARCH_DEFAULT,
-	TARGETSEARCH_NEAREST,
-	TARGETSEARCH_HP,
-	TARGETSEARCH_DAMAGE,
-	TARGETSEARCH_RANDOM
+	TARGETSEARCH_RANDOM,
+	TARGETSEARCH_ATTACKRANGE,
+	TARGETSEARCH_NEAREAST
 };
 
 class Monster : public Creature
@@ -127,12 +126,31 @@ public:
 	virtual BlockType_t blockHit(Creature* attacker, CombatType_t combatType, int32_t& damage,
 		bool checkDefense = false, bool checkArmor = false);
 
+	bool isDistanceFighting() const { return mType->targetDistance >= 4; }
+	bool isTargetNearby() const
+	{ 
+		if (attackedCreature && !isIdle)
+		{
+			if (attackedCreature->getAttackedCreature() && attackedCreature->getAttackedCreature() == this)
+				return Position::areInRange<1, 1>(attackedCreature->getPosition(), getPosition());
+		}
+		return false;
+	}
+	bool shouldSlowDown() const
+	{
+		if (targetChaseTries >= 3)
+			return true;
+		return false;
+	}
+
 private:
 	CreatureList targetList;
 	CreatureList friendList;
 
 	MonsterType* mType;
 
+	int64_t lastMeleeAttack;
+	int16_t targetChaseTries;
 	int32_t minCombatValue;
 	int32_t maxCombatValue;
 	uint32_t attackTicks;
@@ -181,6 +199,8 @@ private:
 	bool getRandomStep(const Position& creaturePos, Direction& dir);
 	bool getDanceStep(const Position& creaturePos, Direction& dir,
 		bool keepAttack = true, bool keepDistance = true);
+	bool getAnimalDanceStep(const Position& creaturePos, Direction& dir,
+		bool keepDistance = true);
 	bool isInSpawnRange(const Position& toPos);
 	bool canWalkTo(Position pos, Direction dir);
 

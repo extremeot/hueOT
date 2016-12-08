@@ -554,9 +554,9 @@ bool Spell::configureSpell(xmlNodePtr p)
 	if(readXMLInteger(p, "manapercent", intValue)){
 	 	manaPercent = intValue;
 	}
-	
-	if(readXMLInteger(p, "levelpercent", intValue)){
-	 	levelPercent = intValue;
+
+	if (readXMLInteger(p, "levelpercent", intValue)){
+		levelPercent = intValue;
 	}
 
 	if(readXMLInteger(p, "soul", intValue)){
@@ -655,13 +655,31 @@ bool Spell::playerSpellCheck(Player* player) const
 			}
 		}
 
-		if(player->hasCondition(CONDITION_EXHAUST_COMBAT) || player->hasCondition(CONDITION_EXHAUST_HEAL))
+		if (isInstant() && isLearnable()){
+			if (!player->hasLearnedInstantSpell(getName())){
+				player->sendCancelMessage(RET_YOUNEEDTOLEARNTHISSPELL);
+				g_game.addMagicEffect(player->getPosition(), NM_ME_PUFF);
+				return false;
+			}
+		}
+		else{
+			if (!vocSpellMap.empty()){
+				if (vocSpellMap.find(player->getVocationId()) == vocSpellMap.end()){
+					player->sendCancelMessage(RET_YOURVOCATIONCANNOTUSETHISSPELL);
+					g_game.addMagicEffect(player->getPosition(), NM_ME_PUFF);
+					return false;
+				}
+			}
+		}
+
+		if( (isAggressive && player->hasCondition(CONDITION_EXHAUST_COMBAT)) ||
+			(!isAggressive && player->hasCondition(CONDITION_EXHAUST_HEAL)) )
 		{
 			player->sendCancelMessage(RET_YOUAREEXHAUSTED);
 
-			if(isInstant()){
+			//if(isInstant()){
 				g_game.addMagicEffect(player->getPosition(), NM_ME_PUFF);
-			}
+			//}
 
 			return false;
 		}
@@ -688,23 +706,6 @@ bool Spell::playerSpellCheck(Player* player) const
 			player->sendCancelMessage(RET_NOTENOUGHSOUL);
 			g_game.addMagicEffect(player->getPosition(), NM_ME_PUFF);
 			return false;
-		}
-
-		if(isInstant() && isLearnable()){
-			if(!player->hasLearnedInstantSpell(getName())){
-				player->sendCancelMessage(RET_YOUNEEDTOLEARNTHISSPELL);
-				g_game.addMagicEffect(player->getPosition(), NM_ME_PUFF);
-				return false;
-			}
-		}
-		else{
-			if(!vocSpellMap.empty()){
-				if(vocSpellMap.find(player->getVocationId()) == vocSpellMap.end()){
-					player->sendCancelMessage(RET_YOURVOCATIONCANNOTUSETHISSPELL);
-					g_game.addMagicEffect(player->getPosition(), NM_ME_PUFF);
-					return false;
-				}
-			}
 		}
 
 		if(needWeapon){
@@ -894,13 +895,13 @@ void Spell::postCastSpell(Player* player, bool finishedCast /*= true*/, bool pay
 			if(exhaustion != 0){
 				if(isAggressive){
 					if(exhaustion == -1)
-						player->addCombatExhaust(g_config.getNumber(ConfigManager::COMBAT_EXHAUSTED));
+						player->addCombatExhaust(1500);
 					else
 						player->addCombatExhaust(exhaustion);
 				}
 				else{
 					if(exhaustion == -1)
-						player->addHealExhaust(g_config.getNumber(ConfigManager::HEAL_EXHAUSTED));
+						player->addHealExhaust(1000);
 					else
 						player->addHealExhaust(exhaustion);
 				}
@@ -943,10 +944,10 @@ int32_t Spell::getManaCost(const Player* player) const
 		int32_t manaCost = (maxMana * manaPercent)/100;
 		return manaCost;
 	}
-	
-	if(levelPercent != 0){
+
+	if (levelPercent != 0){
 		int32_t level = player->getLevel();
-		int32_t manaCost = (level * levelPercent)/100;
+		int32_t manaCost = (level * levelPercent) / 100;
 		return manaCost;
 	}
 
@@ -1384,12 +1385,11 @@ bool InstantSpell::HouseDoorList(const InstantSpell* spell, Creature* creature, 
 bool InstantSpell::HouseKick(const InstantSpell* spell, Creature* creature, const std::string& param)
 {
 	House* house = getHouseFromPos(creature);
-	if(!house)
+	if (!house) {
 		return false;
-
+	}
 	Player* player = creature->getPlayer();
 	house->kickPlayer(player, param);
-
 	return true;
 }
 
@@ -1646,14 +1646,12 @@ bool InstantSpell::SummonMonster(const InstantSpell* spell, Creature* creature, 
 		if(!g_game.placeCreature(monster, creature->getPosition(), true)){
 			creature->removeSummon(monster);
 			ret = RET_NOTENOUGHROOM;
-		} else{
-		g_game.addMagicEffect(monster->getPosition(), NM_ME_TELEPORT);
 		}
 	}
 
 	if(ret == RET_NOERROR){
 		spell->postCastSpell(player, (uint32_t)manaCost, (uint32_t)spell->getSoulCost(player));
-		g_game.addMagicEffect(player->getPosition(), NM_ME_MAGIC_ENERGY);
+		g_game.addMagicEffect(player->getPosition(), NM_ME_MAGIC_POISON);
 	}
 	else{
 		player->sendCancelMessage(ret);
@@ -1844,10 +1842,10 @@ ReturnValue ConjureSpell::internalConjureItem(Player* player, uint32_t conjureId
 	ReturnValue result = g_game.internalPlayerAddItem(player, newItem);
 	if(result != RET_NOERROR){
 		delete newItem;
-		player->updateInventoryWeight();
 	}
 
 	player->updateInventoryWeight();
+
 	return result;
 }
 
@@ -1857,11 +1855,12 @@ ReturnValue ConjureSpell::internalConjureItem(Player* player, uint32_t conjureId
 	if (reagentId != 0){
 		Item* item = player->getInventoryItem(slot);
 		if (item && item->getID() == reagentId){
-			if (item->isStackable() && item->getItemCount() != 1){ //TODO? reagentCount
+			if (item->isStackable() && item->getItemCount() != 1){
 				return RET_YOUNEEDTOSPLITYOURSPEARS;
 			}
 
 			if (test){
+				player->updateInventoryWeight();
 				return RET_NOERROR;
 			}
 
@@ -1875,7 +1874,6 @@ ReturnValue ConjureSpell::internalConjureItem(Player* player, uint32_t conjureId
 		}
 	}
 
-	player->updateInventoryWeight();
 	return RET_YOUNEEDAMAGICITEMTOCASTSPELL;
 }
 
@@ -1937,6 +1935,7 @@ bool ConjureSpell::ConjureItem(const ConjureSpell* spell, Creature* creature, co
 			//Finished the cast, add exhaustion and stuff
 			spell->postCastSpell(player, true, false);
 			g_game.addMagicEffect(player->getPosition(), NM_ME_MAGIC_BLOOD);
+			player->updateInventoryWeight();
 			return true;
 		}
 
@@ -1950,11 +1949,11 @@ bool ConjureSpell::ConjureItem(const ConjureSpell* spell, Creature* creature, co
 		if (internalConjureItem(player, spell->getConjureId(), spell->getConjureCount()) == RET_NOERROR){
 			spell->postCastSpell(player);
 			g_game.addMagicEffect(player->getPosition(), NM_ME_MAGIC_BLOOD);
+			player->updateInventoryWeight();
 			return true;
 		}
 	}
 
-	player->updateInventoryWeight();
 	player->sendCancelMessage(result);
 	g_game.addMagicEffect(player->getPosition(), NM_ME_PUFF);
 	return false;

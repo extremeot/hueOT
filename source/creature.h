@@ -164,7 +164,6 @@ public:
 
 	virtual const std::string& getName() const = 0;
 	virtual const std::string& getNameDescription() const = 0;
-	virtual std::string getXRayDescription() const;
 	virtual std::string getDescription(int32_t lookDistance) const;
 
 	void setID(){this->id = auto_id | this->idRange();}
@@ -346,9 +345,9 @@ public:
 	virtual void onAttackedCreatureDrainMana(Creature* target, int32_t points) {};
 	virtual void onSummonAttackedCreatureDrainMana(Creature* summon, Creature* target, int32_t points) {};
 	virtual void onTargetCreatureGainHealth(Creature* target, int32_t points);
+	virtual void onAttackedCreatureKilled(Creature* target);
 	virtual void onKilledCreature(Creature* target, bool lastHit);
 	virtual void onGainExperience(uint64_t gainExp, bool fromMonster);
-	virtual void onGainSharedExperience(uint64_t gainExp, bool fromMonster);
 	virtual void onAttackedCreatureBlockHit(Creature* target, BlockType_t blockType);
 	virtual void onBlockHit(BlockType_t blockType);
 	virtual void onChangeZone(ZoneType_t zone);
@@ -421,6 +420,20 @@ public:
 
 	static bool canSee(const Position& myPos, const Position& pos, uint32_t viewRangeX, uint32_t viewRangeY);
 
+	bool isLifeTimeOver()
+	{
+		if (LifeTime > (uint64_t)OTSYS_TIME())
+		{
+			return true;
+		}
+		return false;
+	}
+
+	void setLifeTime(uint64_t lifetime)
+	{
+		LifeTime = OTSYS_TIME() + lifetime;
+	}
+
 protected:
 	static const int32_t mapWalkWidth = Map::maxViewportX * 2 + 1;
 	static const int32_t mapWalkHeight = Map::maxViewportY * 2 + 1;
@@ -428,6 +441,7 @@ protected:
 
 	virtual bool useCacheMap() const {return false;}
 
+	uint64_t LifeTime;
 	Tile* _tile;
 	uint32_t id;
 	bool isInternalRemoved;

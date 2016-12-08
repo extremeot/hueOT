@@ -83,6 +83,7 @@ enum AttrTypes_t{
 	// attr 0 means end of attribute list
 	//ATTR_DESCRIPTION = 1,
 	//ATTR_EXT_FILE = 2,
+	ATTR_NO_DECAYING = 2,
 	ATTR_TILE_FLAGS = 3,
 	ATTR_ACTION_ID = 4,
 	ATTR_UNIQUE_ID = 5,
@@ -240,8 +241,8 @@ class Item : virtual public Thing, public ItemAttributes
 {
 public:
 	//Factory member to create item of right type based on type
-	static Item* CreateItem(const uint16_t _type, uint16_t _count = 0);
-	static Item* CreateItem(PropStream& propStream);
+	static Item* CreateItem(const uint16_t _type, uint16_t _count = 0, bool disableDecaying = false);
+	static Item* CreateItem(PropStream& propStream, bool disableDecaying = false);
 	static bool loadItem(xmlNodePtr node, Container* parent);
 	static bool loadContainer(xmlNodePtr node, Container* parent);
 
@@ -290,7 +291,6 @@ public:
 	virtual int getThrowRange() const {return (isPickupable() ? 15 : 2);};
 
 	virtual std::string getDescription(int32_t lookDistance) const;
-	virtual std::string getXRayDescription() const;
 	std::string getWeightDescription() const;
 
 	uint16_t getID() const {return id;}
@@ -322,7 +322,9 @@ public:
 	void getLight(LightInfo& lightInfo);
 
 	bool hasProperty(enum ITEMPROPERTY prop) const;
-	bool isBlocking(const Creature* creature) const {return items[id].blockSolid;}
+	bool isBlocking(const Creature* creature) const {
+		return items[id].blockSolid;
+	}
 	bool isStackable() const {return items[id].stackable;}
 	bool isRune() const {return items[id].isRune();}
 	bool isFluidContainer() const {return (items[id].isFluidContainer());}
@@ -381,6 +383,8 @@ public:
 	virtual bool onTradeEvent(TradeEvents_t event, Player* owner){return true;};
 
 	virtual void __startDecaying();
+
+	bool disableDecaying;
 
 protected:
 	// If weight description is needed from outside of item class

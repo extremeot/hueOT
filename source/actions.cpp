@@ -302,6 +302,7 @@ ReturnValue Actions::internalUseItem(Player* player, const Position& pos,
 	int32_t stack = item->getParent()->__getIndexOfThing(item);
 	PositionEx posEx(pos, stack);
 	bool foundAction = false;
+	bool sendCannotUse = false;
 
 	Action* action = getAction(item, ACTION_UNIQUEID);
 	if(action){
@@ -319,6 +320,7 @@ ReturnValue Actions::internalUseItem(Player* player, const Position& pos,
 			return RET_NOERROR;
 		}
 		foundAction = true;
+		sendCannotUse = true;
 	}
 
 	action = getAction(item, ACTION_ITEMID);
@@ -328,6 +330,7 @@ ReturnValue Actions::internalUseItem(Player* player, const Position& pos,
 			return RET_NOERROR;
 		}
 		foundAction = true;
+		sendCannotUse = true;
 	}
 
 	action = getAction(item, ACTION_RUNEID);
@@ -389,6 +392,9 @@ ReturnValue Actions::internalUseItem(Player* player, const Position& pos,
 		}
 		return RET_NOERROR;
 	}
+
+	if (sendCannotUse)
+		return RET_CANNOTUSETHISOBJECT;
 
 	if(foundAction)
 		return RET_NOERROR;

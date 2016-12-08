@@ -34,6 +34,25 @@
 
 extern ConfigManager g_config;
 
+std::mt19937& getRandomGenerator()
+{
+	static std::random_device rd;
+	static std::mt19937 generator(rd());
+	return generator;
+}
+
+int32_t uniform_random(int32_t minNumber, int32_t maxNumber)
+{
+	static std::uniform_int_distribution<int32_t> uniformRand;
+	if (minNumber == maxNumber) {
+		return minNumber;
+	}
+	else if (minNumber > maxNumber) {
+		std::swap(minNumber, maxNumber);
+	}
+	return uniformRand(getRandomGenerator(), std::uniform_int_distribution<int32_t>::param_type(minNumber, maxNumber));
+}
+
 void replaceString(std::string& str, const std::string sought, const std::string replacement)
 {
 	size_t pos = 0;
@@ -345,7 +364,7 @@ std::string urlEncode(const char* str)
 	return out;
 }
 
-bool passwordTest(std::string plain, std::string &hash)
+bool passwordTest(std::string plain, std::string hash)
 {
 	// Salt it beforehand
 	plain += g_config.getString(ConfigManager::PASSWORD_SALT);

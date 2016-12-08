@@ -66,6 +66,7 @@ public:
 	*/
 	bool loadHouses(Map* map)
 	{
+		std::cout << "Loading houses data..." << std::endl;
 		if(!map->housefile.empty()){
 			return Houses::getInstance().loadHousesXML(map->housefile);
 		}

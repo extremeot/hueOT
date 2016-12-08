@@ -34,6 +34,8 @@
 #include <string>
 #include <sstream>
 #include <fstream>
+#include <algorithm>
+#include <string>
 
 extern ConfigManager g_config;
 extern Game g_game;
@@ -75,9 +77,12 @@ Npc* Npc::createNpc(const std::string& name)
 Npc::Npc(const std::string& _name) :
 Creature()
 {
+	std::string __name = _name;
+	std::transform(__name.begin(), __name.end(), __name.begin(), ::tolower);
+
 	m_datadir = g_config.getString(ConfigManager::DATA_DIRECTORY);
 	m_scriptdir = m_datadir + "npc/scripts/";
-	m_filename = m_datadir + "npc/" + _name + ".xml";
+	m_filename = m_datadir + "npc/" + __name + ".xml";
 	loaded = false;
 
 	m_npcEventHandler = NULL;
@@ -109,7 +114,6 @@ bool Npc::load()
 		m_scriptInterface = new NpcScriptInterface();
 		m_scriptInterface->loadNpcLib(std::string(m_datadir + "npc/scripts/lib/npc.lua"));
 	}
-
 	loaded = loadFromXml(m_filename);
 	return isLoaded();
 }
@@ -117,8 +121,9 @@ bool Npc::load()
 void Npc::reset()
 {
 	loaded = false;
-	walkTicks = 1500;
+	walkTicks = 1000;
 	floorChange = false;
+	initialLookDir = SOUTH;
 	attackable = false;
 	hasScriptedFocus = false;
 	focusCreature = 0;
@@ -191,10 +196,14 @@ bool Npc::loadFromXml(const std::string& filename)
 			masterRadius = intValue;
 		}
 
+		if (readXMLInteger(root, "lookdir", intValue)){
+			initialLookDir = (Direction)intValue;
+		}
+
 		if (readXMLInteger(root, "autowalk", intValue)){
 			//Deprecated attribute.
 			if (intValue == 0){
-				walkTicks = 2000;
+				walkTicks = 1500;
 			}
 		}
 
@@ -239,7 +248,7 @@ bool Npc::loadFromXml(const std::string& filename)
 					}
 				}
 				else if (readXMLInteger(p, "typeex", intValue)){
-					defaultOutfit.lookTypeEx = intValue;
+					defaultOutfit.lookTypeEx = Item::items.getItemIdByClientId(intValue).id;
 				}
 
 				currentOutfit = defaultOutfit;
@@ -339,7 +348,7 @@ void Npc::onCreatureAppear(const Creature* creature, bool isLogin)
 		}
 	}
 	//only players for script events
-	else if (creature->getPlayer()){
+	else if (Player* player = const_cast<Player*>(creature->getPlayer())){
 		if (m_npcEventHandler){
 			m_npcEventHandler->onCreatureAppear(creature);
 		}
@@ -351,7 +360,7 @@ void Npc::onCreatureDisappear(const Creature* creature, bool isLogout)
 	Creature::onCreatureDisappear(creature, isLogout);
 
 	//only players for script events
-	if (creature->getPlayer()){
+	if (Player* player = const_cast<Player*>(creature->getPlayer())){
 		if (m_npcEventHandler){
 			m_npcEventHandler->onCreatureDisappear(creature);
 		}
@@ -368,7 +377,7 @@ void Npc::onCreatureMove(const Creature* creature, const Tile* newTile, const Po
 			m_npcEventHandler->onCreatureMove(creature, oldPos, newPos);
 		}
 	}
-	else if (creature->getPlayer()){
+	else if (Player* player = const_cast<Player*>(creature->getPlayer())){
 		if (m_npcEventHandler){
 			m_npcEventHandler->onCreatureMove(creature, oldPos, newPos);
 		}
@@ -408,11 +417,11 @@ void Npc::onThink(uint32_t interval)
 		m_npcEventHandler->onThink();
 	}
 
-	if (getTimeSinceLastMove() >= walkTicks)
+	if (getTimeSinceLastMove() >= walkTicks + getStepDuration())
 		addEventWalk();
 
 	isIdle = true;
-
+	
 	if (isIdle && !hasScriptedFocus){
 		setCreatureFocus(NULL);
 	}
@@ -458,7 +467,7 @@ bool Npc::getNextStep(Direction& dir, uint32_t& flags)
 		return false;
 	}
 
-	if (getTimeSinceLastMove() < walkTicks){
+	if (getTimeSinceLastMove() < walkTicks + getStepDuration() + getStepSpeed()){
 		return false;
 	}
 
@@ -505,6 +514,9 @@ bool Npc::canWalkTo(const Position& fromPos, Direction dir)
 	if (!floorChange && (tile->floorChange() || tile->getTeleportItem())){
 		return false;
 	}
+
+	if (tile->getHeight() > 0)
+		return false;
 
 	return true;
 }
@@ -639,6 +651,8 @@ bool NpcScriptInterface::closeState()
 
 bool NpcScriptInterface::loadNpcLib(std::string file)
 {
+        std::transform(file.begin(), file.end(), file.begin(), ::tolower);
+
 	if (m_libLoaded)
 		return true;
 
@@ -812,13 +826,15 @@ int NpcScriptInterface::luaSetNpcFocus(lua_State *L)
 		Creature* creature = env->getCreatureByUID(cid);
 		if (creature){
 			npc->hasScriptedFocus = true;
+			npc->setCreatureFocus(creature);
 		}
 		else{
-			npc->hasScriptedFocus = false;
-			npc->turnToInitialLookDirection();
+			//npc->hasScriptedFocus = false;
+			//npc->turnToInitialLookDirection();
+			g_scheduler.addEvent(createSchedulerTask(3000, boost::bind(&Npc::doLoseAllFocus, npc)));
 		}
 
-		npc->setCreatureFocus(creature);
+		//npc->setCreatureFocus(creature);
 	}
 	return 0;
 }
@@ -915,6 +931,7 @@ bool NpcEventsHandler::isLoaded()
 NpcScript::NpcScript(std::string file, Npc* npc) :
 NpcEventsHandler(npc)
 {
+        std::transform(file.begin(), file.end(), file.begin(), ::tolower);
 	m_scriptInterface = npc->getScriptInterface();
 
 	if (m_scriptInterface->reserveScriptEnv()){

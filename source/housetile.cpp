@@ -101,7 +101,7 @@ ReturnValue HouseTile::__queryAdd(int32_t index, const Thing* thing, uint32_t co
 	}
 	else if(thing->getItem())
 	{
-		const uint32_t itemLimit = g_config.getNumber(ConfigManager::HOUSE_TILE_LIMIT);
+		const uint32_t itemLimit = 1000;
 		if(itemLimit && getThingCount() > itemLimit)
 			return RET_TILEISFULL;
 	}

@@ -362,28 +362,6 @@ ReturnValue Container::__queryAdd(int32_t index, const Thing* thing, uint32_t co
 		}
 	}
 
-	int32_t maxDeepness = g_config.getNumber(ConfigManager::MAX_DEEPNESS_OF_CHAIN_OF_CONTAINERS);
-	if (maxDeepness > 0){
-		if (item->getContainer() && getParentContainer()){ //only containers inside of other containers have a deepness updated
-			if (getDeepness() + 1 > maxDeepness){
-				return RET_CONTAINERHASTOMANYCONTAINERS;
-			}
-		}
-	}
-
-	/* the return value of RET_CONTAINERHASTOMANYITEMS and RET_CONTAINERHASTOMANYCONTAINERS
-	   should be sent ONLY if there weren't any other error */
-	const Container* c = this;
-	int32_t max_amount_inside = g_config.getNumber(ConfigManager::MAX_AMOUNT_ITEMS_INSIDE_CONTAINERS);
-	if (max_amount_inside > 0){
-		do {
-			if ((c->getTotalAmountOfItemsInside() + thing->getTotalAmountOfItemsInside()) > (uint32_t) max_amount_inside + 1)
-				return RET_CONTAINERHASTOMANYITEMS;
-			c = c->getParentContainer();
-		}
-		while(c);
-	}
-
 	return RET_NOERROR;
 }
 
